@@ -1,4 +1,6 @@
 import { randomBytes } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { Mppx, tempo } from 'mppx/hono'
@@ -52,7 +54,21 @@ console.log(
   `[seed] ${toAddress(REGULAR_AGENT_ADDRESS)} -> ${REGULAR_SEED_PURCHASES} prior purchases`,
 )
 
+// A few pre-settled demo rows so the dashboard is never empty on stage.
+store.seedDemoEvents()
+
+// Dashboard page, read once at boot. Inlined/self-contained — no CDN or build step.
+const dashboardHtml = readFileSync(
+  fileURLToPath(new URL('../public/index.html', import.meta.url)),
+  'utf8',
+)
+
 const app = new Hono<{ Variables: Variables }>()
+
+// --- Dashboard (free, unpaid — never wrap these in mppx.charge) ---
+app.get('/', (c) => c.html(dashboardHtml))
+app.get('/api/events', (c) => c.json({ events: store.recentEvents() }))
+app.get('/api/stats', (c) => c.json(store.stats()))
 
 app.get(
   '/data/:resource',
