@@ -5,7 +5,8 @@
 *.pem
 *.key
 
-*-claude-code-prompt.md
+# Build spec / prompt docs — never commit or push (any *-prompt.md)
+*-prompt.md
 
 # Dependencies
 node_modules/
