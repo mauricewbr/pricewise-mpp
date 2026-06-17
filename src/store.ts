@@ -1,6 +1,10 @@
 // In-memory store. No database — a Map plus an append-only event log.
-// `source` is whatever identifier the route records: a payer DID
-// (`did:pkh:...`) from a verified Credential, or undefined when unknown.
+//
+// Identity in (a bare `0x…` hint or a `did:pkh:…:0x…` source DID) is always run
+// through `toAddress`, so history keys on the bare lowercased address. That makes
+// the pre-payment hint and the post-payment payer DID land on the same key.
+
+import { toAddress } from './identity'
 
 export interface Breakdown {
   amount: number
@@ -29,26 +33,41 @@ export const store = {
   /** Append-only event log. A later phase's dashboard reads this; don't build it now. */
   events,
 
-  /** Per-source totals; zeros if the source is unknown. */
-  history(source?: string): SourceHistory {
-    if (!source) return { purchases: 0, totalSpend: 0 }
-    return histories.get(source) ?? { purchases: 0, totalSpend: 0 }
+  /** Per-address totals; zeros if unknown. Accepts a bare address or a source DID. */
+  history(id?: string): SourceHistory {
+    const addr = toAddress(id)
+    if (!addr) return { purchases: 0, totalSpend: 0 }
+    return histories.get(addr) ?? { purchases: 0, totalSpend: 0 }
   },
 
-  /** Record a settled purchase: append to the log and bump the source's history. */
+  /** Record a settled purchase: append to the log and bump the payer's history. */
   recordPurchase(
-    source: string | undefined,
+    id: string | undefined,
     amount: number,
     resource: string,
     breakdown: Breakdown[],
   ): void {
-    events.push({ source, amount, resource, breakdown, at: Date.now() })
-    if (source) {
-      const h = histories.get(source) ?? { purchases: 0, totalSpend: 0 }
+    const addr = toAddress(id)
+    events.push({ source: addr, amount, resource, breakdown, at: Date.now() })
+    if (addr) {
+      const h = histories.get(addr) ?? { purchases: 0, totalSpend: 0 }
       h.purchases += 1
       h.totalSpend += amount
-      histories.set(source, h)
+      histories.set(addr, h)
     }
+  },
+
+  /**
+   * Pre-load a persona's history without real charges (demo seeding).
+   * Sets totals directly so the address already has a loyalty tier.
+   */
+  seed(address: string, purchases: number): void {
+    const addr = toAddress(address)
+    if (!addr) return
+    histories.set(addr, {
+      purchases,
+      totalSpend: Math.round(purchases * 0.1 * 1e4) / 1e4,
+    })
   },
 
   /** How many events landed in the last 60s. */
