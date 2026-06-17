@@ -6,11 +6,12 @@ import { serve } from '@hono/node-server'
 import { Mppx, tempo } from 'mppx/hono'
 import { Credential } from 'mppx'
 import { priceFor } from './pricing/engine'
-import { loyalty } from './pricing/rules'
+import { loyalty, BASE_PRICE } from './pricing/rules'
 import { store } from './store'
 import { toAddress } from './identity'
 import { MODERATO_CHAIN_ID } from './chain'
 import { REGULAR_AGENT_ADDRESS, REGULAR_SEED_PURCHASES } from './personas'
+import { buildOpenApiDoc, PROSE, LLMS_TXT } from './discovery'
 
 // NOTE — adapted from the original spec snippet to match the shipped mppx@0.7.0 API:
 // `mppx/hono`'s `mppx.charge(opts)` returns a Hono *MiddlewareHandler*, not a
@@ -70,6 +71,16 @@ app.get('/', (c) => c.html(dashboardHtml))
 app.get('/api/events', (c) => c.json({ events: store.recentEvents() }))
 app.get('/api/stats', (c) => c.json(store.stats()))
 
+// --- Discovery (free, unpaid) ---
+// Built once from a BASE-price charge handler so offers[] advertise the worst-case
+// price (the discount lives only in x-loyalty and the live 402, never in offers[]).
+const openApiDoc = buildOpenApiDoc(mppx, mppx.charge({ amount: String(BASE_PRICE), description: PROSE }))
+app.get('/openapi.json', (c) => {
+  c.header('Cache-Control', 'public, max-age=60')
+  return c.json(openApiDoc)
+})
+app.get('/llms.txt', (c) => c.text(LLMS_TXT))
+
 app.get(
   '/data/:resource',
   // Stage 1: compute the loyalty-adjusted price from the (unverified) X-Agent hint,
@@ -86,7 +97,7 @@ app.get(
       recentRequests: store.recentRequestCount(),
       history: store.history(hintAddr),
     }
-    const { amount, breakdown } = priceFor(ctx, 0.1, [loyalty])
+    const { amount, breakdown } = priceFor(ctx, BASE_PRICE, [loyalty])
     // Visible during free challenge-only iteration (this leg runs even when unpaid).
     console.log('[price]', hintAddr ?? 'anon', amount, breakdown.map((b) => b.note))
     c.set('amount', amount)
