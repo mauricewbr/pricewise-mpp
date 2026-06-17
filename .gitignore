@@ -1,0 +1,25 @@
+# Secrets — never commit real keys/addresses
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+*-claude-code-prompt.md
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor cruft
+.DS_Store
+.idea/
+.vscode/
+*.swp
