@@ -8,8 +8,9 @@
 // REGULAR_AGENT_PRIVATE_KEY with your own keys, update these to match;
 // agents/run.ts warns at runtime if a key derives a different address.
 
-/** Fresh caller — no seeded history (full price). */
-export const NEW_AGENT_ADDRESS = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' as const
+/** Fresh caller — no seeded history (full price).
+ *  Funded mppx keychain account ("newagent") so it can settle real charges on Moderato. */
+export const NEW_AGENT_ADDRESS = '0x6323928363B5f6ffA68F9258061bbc00f12f41bB' as const
 
 /** Returning caller — pre-seeded so it already has loyalty tier before the demo.
  *  Funded mppx keychain account ("regular") so it can settle real charges on Moderato. */
