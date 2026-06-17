@@ -11,8 +11,9 @@
 /** Fresh caller — no seeded history (full price). */
 export const NEW_AGENT_ADDRESS = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' as const
 
-/** Returning caller — pre-seeded so it already has loyalty tier before the demo. */
-export const REGULAR_AGENT_ADDRESS = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC' as const
+/** Returning caller — pre-seeded so it already has loyalty tier before the demo.
+ *  Funded mppx keychain account ("regular") so it can settle real charges on Moderato. */
+export const REGULAR_AGENT_ADDRESS = '0xE459f654Eea8c657a18fc6Ed3EaE159Dba9dbb7B' as const
 
 /**
  * Prior purchases seeded for the regular persona.
