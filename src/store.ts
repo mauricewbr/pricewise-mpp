@@ -24,6 +24,21 @@ export interface SourceHistory {
   totalSpend: number
 }
 
+/** Shape the dashboard reads (event log row, normalized). */
+export interface EventRow {
+  source?: string
+  resource: string
+  amount: number
+  breakdown: Breakdown[]
+  ts: number
+}
+
+export interface Stats {
+  revenue: number
+  count: number
+  avgPrice: number
+}
+
 const events: PurchaseEvent[] = []
 const histories = new Map<string, SourceHistory>()
 
@@ -80,4 +95,75 @@ export const store = {
     }
     return count
   },
+
+  /** Newest-first settled-purchase rows for the dashboard readout. */
+  recentEvents(limit = 50): EventRow[] {
+    return [...events]
+      .sort((a, b) => b.at - a.at)
+      .slice(0, limit)
+      .map(({ source, resource, amount, breakdown, at }) => ({
+        source,
+        resource,
+        amount,
+        breakdown,
+        ts: at,
+      }))
+  },
+
+  /** Aggregate counters over all settled events. */
+  stats(): Stats {
+    const count = events.length
+    const revenue = events.reduce((sum, e) => sum + e.amount, 0)
+    return {
+      revenue: Math.round(revenue * 1e6) / 1e6,
+      count,
+      avgPrice: count ? Math.round((revenue / count) * 1e6) / 1e6 : 0,
+    }
+  },
+
+  /**
+   * Seed a few pre-settled demo rows so the dashboard is never empty on stage.
+   * These represent PRIOR REAL settlements (not fake quotes) — they only populate
+   * the readout's event log; they do not touch loyalty history. Idempotent.
+   */
+  seedDemoEvents(): void {
+    if (seededDemo) return
+    seededDemo = true
+    const now = Date.now()
+    const rows: PurchaseEvent[] = [
+      {
+        source: '0xe459f654eea8c657a18fc6ed3eae159dba9dbb7b', // regular persona (discounted)
+        resource: 'foo',
+        amount: 0.085,
+        breakdown: [
+          { amount: 0.1, note: 'base' },
+          { amount: 0.085, note: 'loyalty: tier 3 −15%' },
+        ],
+        at: now - 5 * 60_000,
+      },
+      {
+        source: '0x70997970c51812dc3a010c7d01b50e0d17dc79c8', // new caller (full price)
+        resource: 'bar',
+        amount: 0.1,
+        breakdown: [
+          { amount: 0.1, note: 'base' },
+          { amount: 0.1, note: 'loyalty: new caller' },
+        ],
+        at: now - 4 * 60_000,
+      },
+      {
+        source: '0xe459f654eea8c657a18fc6ed3eae159dba9dbb7b', // regular persona again
+        resource: 'baz',
+        amount: 0.085,
+        breakdown: [
+          { amount: 0.1, note: 'base' },
+          { amount: 0.085, note: 'loyalty: tier 3 −15%' },
+        ],
+        at: now - 3 * 60_000,
+      },
+    ]
+    events.push(...rows)
+  },
 }
+
+let seededDemo = false
