@@ -8,14 +8,18 @@ is always authoritative.
 
 | Endpoint | What it exposes |
 |----------|-----------------|
-| `GET /openapi.json` | OpenAPI 3.1 doc. `/data/{resource}` carries `x-payment-info.offers[]` (base/worst-case price `100000` = $0.10, pathUSD). Root `x-service-info` (categories + docs links) and root `x-loyalty` (tier ladder). |
+| `GET /openapi.json` | OpenAPI 3.1 doc. `/data/{resource}` carries `x-payment-info.offers[]` (base/worst-case price `100000` = $0.10, pathUSD). Root `x-service-info` (categories + docs links), root `x-loyalty` (tier ladder), and root `x-identity-pricing` (the conditional-pricing *mechanism*). |
 | `GET /llms.txt` | Plain-text summary for LLM agents. |
 
 Three discoverability layers, in priority order:
 
 1. **`x-payment-info.offers[]`** — the base price every agent can find (`100000`). Never personalized; the discount is **not** encoded here.
 2. **`x-loyalty`** — machine-readable tier ladder (thresholds, discounts, effective amounts), derived from `src/pricing/rules.ts` so it can't drift from runtime pricing.
-3. **Prose pointer** — one sentence in the operation `description` (and `llms.txt`) so an LLM agent that doesn't parse `x-loyalty` still learns the program exists.
+3. **`x-identity-pricing`** — the *mechanism* signal: how to obtain the conditional price. Assert your wallet via `X-Agent`; the discounted challenge is **bound to that source** (HMAC'd into the challenge id) and only settles if the payment credential's **verified** source matches. A forged claim can't pay the discounted challenge — it falls back to base. Reuses the same rule-derived tiers as `x-loyalty`.
+4. **Prose pointer** — one sentence in the operation `description` (and `llms.txt`) so an LLM agent that doesn't parse the extensions still learns the program exists.
+
+The reference agent (`npm run agent -- regular --discover`) consumes this end-to-end:
+reads `x-identity-pricing`, asserts identity, and settles at its tier price — proving the facet is machine-consumable.
 
 ## Registering with MPPScan (manual — do NOT auto-register)
 

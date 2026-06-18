@@ -20,6 +20,7 @@ Open the dashboard (Terminal A's URL) on the projector before starting.
 | `npm run agent -- regular --quote` | Show the 402 price for the regular — **$0.085 (85000), loyalty: tier 3 −15%** | terminal only · no row |
 | `npm run agent -- regular --settle` | Real on-chain charge at **85000**; prints receipt + tx | **new discounted row + counters tick** |
 | `npm run agent -- new --settle` | Real on-chain charge at **100000**; prints receipt + tx | **new full-price row + counters tick** |
+| `npm run agent -- regular --discover` | The *informed* path: reads `/openapi.json` → `x-identity-pricing`, asserts identity, settles at tier price. Prints a discovered→identified→settled trace. | **new discounted row + counters tick** |
 
 - **Default mode is `--quote`** (free, safe) — an accidental run never spends funds.
 - Each run is **one-shot**; re-run manually to control timing. No auto-loop.
