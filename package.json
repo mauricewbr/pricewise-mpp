@@ -7,9 +7,11 @@
     "dev": "node --env-file-if-exists=.env --import tsx src/server.ts",
     "agent": "node --env-file-if-exists=.env --import tsx agents/run.ts",
     "seed": "node --env-file-if-exists=.env --import tsx agents/seed.ts",
+    "live": "node --env-file-if-exists=.env --import tsx agents/live.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.2",
     "@hono/node-server": "^1.13.0",
     "hono": "^4.6.0",
     "mppx": "^0.7.0",
