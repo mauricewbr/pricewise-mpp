@@ -1,42 +1,30 @@
 import { Mppx, tempo } from 'mppx/client'
-import { privateKeyToAccount } from 'viem/accounts'
+import { resolveAccount } from 'mppx/cli'
 import { MODERATO_CHAIN_ID } from '../src/chain'
-import { NEW_AGENT_ADDRESS, REGULAR_AGENT_ADDRESS } from '../src/personas'
 
-// One-shot demo CLI. Two personas × two modes:
-//   npm run agent -- <new|regular> [--quote|--settle]
-//     --quote  (default) read the 402 challenge price only; NO payment, NO dashboard row
-//     --settle real pay -> retry -> 200; settles on-chain and adds a dashboard row
-// Private keys come from .env (see .env.example); never hardcode them here.
-
-function keyFromEnv(name: string): `0x${string}` {
-  const k = process.env[name]
-  if (!k) throw new Error(`${name} is required — set it in .env (see .env.example).`)
-  return k as `0x${string}`
-}
-
-const personas = {
-  new: { account: privateKeyToAccount(keyFromEnv('NEW_AGENT_PRIVATE_KEY')), expected: NEW_AGENT_ADDRESS },
-  regular: { account: privateKeyToAccount(keyFromEnv('REGULAR_AGENT_PRIVATE_KEY')), expected: REGULAR_AGENT_ADDRESS },
-} as const
+// One-shot demo CLI. Identity is an mppx keychain account (see `npx mppx account list`),
+// resolved by name — no hardcoded addresses, no private keys in .env.
+//   npm run agent -- --account <name> [--quote|--settle|--discover]
+//     --quote   (default) read the 402 challenge price only; NO payment, NO dashboard row
+//     --settle  real pay -> retry -> 200; settles on-chain and adds a dashboard row
+//     --discover derive-then-act: read discovery, then settle accordingly
 
 const args = process.argv.slice(2)
-const which = (args.find((a) => a === 'new' || a === 'regular') ?? 'regular') as keyof typeof personas
-// --discover: read the discovery doc, then settle via the informed path.
-// --settle: settle directly. default: quote (free/safe).
+const accIdx = args.indexOf('--account')
+const name = accIdx >= 0 ? args[accIdx + 1] : (process.env.MPPX_ACCOUNT ?? 'main')
 const mode: 'quote' | 'settle' | 'discover' = args.includes('--discover')
   ? 'discover'
   : args.includes('--settle')
     ? 'settle'
     : 'quote'
 
-const { account, expected } = personas[which]
-if (account.address.toLowerCase() !== expected.toLowerCase()) {
-  console.warn(
-    `[warn] ${which} key derives ${account.address}, but personas.ts expects ${expected}. ` +
-      `Update src/personas.ts or your .env key so the server seeds the right address.`,
-  )
-}
+// Load the keychain account as a viem account (resolveAccount: MPPX_PRIVATE_KEY env,
+// else OS keychain lookup by name). Signs locally; the key never touches .env.
+const account = await resolveAccount(name).catch((e) => {
+  console.error(`[agent] could not resolve account "${name}": ${e.message}`)
+  console.error('        list available accounts with: npx mppx account list')
+  process.exit(1)
+})
 
 const baseUrl = process.env.SERVER_URL ?? 'http://localhost:3000'
 const url = `${baseUrl}/data/foo`
@@ -109,18 +97,18 @@ async function settledAmountFor(addr: string): Promise<number | undefined> {
   }
 }
 
-console.log(`\n=== Pricewise agent · persona=${which} · mode=${mode} ===`)
+console.log(`\n=== Pricewise agent · account=${name} · mode=${mode} ===`)
 console.log(`[agent] address = ${account.address}`)
 
 if (mode === 'quote') {
   const q = await readChallenge()
   if (q) {
-    console.log(`[quote] ${which} → quoted ${usd(q.dollars)} (${q.amount})  ${q.note}`)
+    console.log(`[quote] ${name} → quoted ${usd(q.dollars)} (${q.amount})  ${q.note}`)
     console.log('[quote] no payment made — free rehearsal path, no dashboard row')
   }
 } else if (mode === 'settle') {
   const q = await readChallenge()
-  if (q) console.log(`[settle] charging ${which} → ${usd(q.dollars)} (${q.amount})  ${q.note}`)
+  if (q) console.log(`[settle] charging ${name} → ${usd(q.dollars)} (${q.amount})  ${q.note}`)
   const r = await settle('X-Agent')
   console.log(`[settle] status  = ${r.status}`)
   console.log(`[settle] receipt = ${r.receipt?.status ?? '?'}`)

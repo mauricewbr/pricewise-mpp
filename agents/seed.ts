@@ -1,23 +1,28 @@
+import { resolveAccount } from 'mppx/cli'
 import { LOYALTY, BASE_PRICE, loyalty } from '../src/pricing/rules'
 import { priceFor } from '../src/pricing/engine'
-import { NEW_AGENT_ADDRESS, REGULAR_AGENT_ADDRESS } from '../src/personas'
 
-// Seed a persona's STARTING settled-purchase count so a live threshold crossing can be
-// demoed. The crossing itself must come from real settles (recordPurchase) — this only
-// sets the starting count. All tier/threshold numbers are derived from the loyalty rule.
-// Usage: npm run seed -- <new|regular> <count>
-
-const personas = { new: NEW_AGENT_ADDRESS, regular: REGULAR_AGENT_ADDRESS } as const
+// Seed a keychain account's STARTING settled-purchase count so a live threshold crossing
+// can be demoed. The crossing itself must come from real settles (recordPurchase) — this
+// only sets the starting count. All tier/threshold numbers are derived from the loyalty rule.
+// Usage: npm run seed -- --account <name> <count>
 
 const args = process.argv.slice(2)
-const which = args.find((a) => a === 'new' || a === 'regular') as keyof typeof personas | undefined
+const accIdx = args.indexOf('--account')
+const name = accIdx >= 0 ? args[accIdx + 1] : process.env.MPPX_ACCOUNT
 const nArg = args.find((a) => /^\d+$/.test(a))
-if (!which || nArg === undefined) {
-  console.error('Usage: npm run seed -- <new|regular> <count>   (count is required and explicit)')
+if (!name || nArg === undefined) {
+  console.error('Usage: npm run seed -- --account <name> <count>   (account and count are required)')
   process.exit(1)
 }
 const n = Number(nArg)
-const address = personas[which]
+const address = await resolveAccount(name)
+  .then((a) => a.address)
+  .catch((e) => {
+    console.error(`[seed] could not resolve account "${name}": ${e.message}`)
+    console.error('       list available accounts with: npx mppx account list')
+    process.exit(1)
+  })
 const baseUrl = process.env.SERVER_URL ?? 'http://localhost:3000'
 
 const toUnits = (d: number) => Math.round(d * 1e6)
@@ -54,7 +59,7 @@ if (!res || !res.ok) {
   process.exit(1)
 }
 
-console.log(`[seed] ${which} ${address}`)
+console.log(`[seed] ${name} ${address}`)
 console.log(
   `[seed] seeded at ${n} → tier ${tier} (${toUnits(price)} base units); ${nextLine}`,
 )

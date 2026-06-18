@@ -10,7 +10,7 @@ import { loyalty, BASE_PRICE } from './pricing/rules'
 import { store } from './store'
 import { toAddress } from './identity'
 import { MODERATO_CHAIN_ID } from './chain'
-import { REGULAR_AGENT_ADDRESS, REGULAR_SEED_PURCHASES } from './personas'
+import { resolveAccount } from 'mppx/cli'
 import { buildOpenApiDoc, PROSE, LLMS_TXT } from './discovery'
 
 // NOTE — adapted from the original spec snippet to match the shipped mppx@0.7.0 API:
@@ -50,12 +50,22 @@ const mppx = Mppx.create({
   ],
 })
 
-// Pre-seed the returning persona so it already has a loyalty tier for the demo.
-// In-memory only — no real charges needed.
-store.seed(REGULAR_AGENT_ADDRESS, REGULAR_SEED_PURCHASES)
-console.log(
-  `[seed] ${toAddress(REGULAR_AGENT_ADDRESS)} -> ${REGULAR_SEED_PURCHASES} prior purchases`,
-)
+// Optionally pre-seed a returning persona so it already has a loyalty tier for the demo.
+// The account is resolved by name from the OS keychain (PRICEWISE_SEED_ACCOUNT); in-memory
+// only, no real charges. Unset PRICEWISE_SEED_ACCOUNT to boot with no seeded history.
+const seedAccount = process.env.PRICEWISE_SEED_ACCOUNT
+if (seedAccount) {
+  const seedCount = Number(process.env.PRICEWISE_SEED_COUNT ?? '15')
+  try {
+    const { address } = await resolveAccount(seedAccount)
+    store.seed(address, seedCount)
+    console.log(`[seed] ${toAddress(address)} -> ${seedCount} prior purchases (account "${seedAccount}")`)
+  } catch (e) {
+    console.warn(
+      `[seed] skipped — could not resolve account "${seedAccount}" from keychain: ${(e as Error).message}`,
+    )
+  }
+}
 
 // A few pre-settled demo rows so the dashboard is never empty on stage.
 store.seedDemoEvents()
