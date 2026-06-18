@@ -27,6 +27,8 @@ const accountName = accIdx >= 0 ? args[accIdx + 1] : (process.env.MPPX_ACCOUNT ?
 const urlIdx = args.indexOf('--url')
 const baseUrl = urlIdx >= 0 ? args[urlIdx + 1] : (process.env.SERVER_URL ?? 'http://localhost:3000')
 const pure = args.includes('--pure')
+const repeatIdx = args.indexOf('--repeat')
+const repeat = repeatIdx >= 0 ? Math.max(1, Number(args[repeatIdx + 1]) || 1) : 1
 const dataUrl = `${baseUrl}/data/foo`
 
 if (!process.env.ANTHROPIC_API_KEY) {
@@ -55,6 +57,7 @@ let discoveredFacet = false
 let assertedIdentity = false
 let paidAmount: number | undefined
 let txRef: string | undefined
+const paidSeq: number[] = [] // each settled price, in order (for --repeat runs)
 
 function usd(n: number): string {
   let s = n.toFixed(6).replace(/0+$/, '')
@@ -163,6 +166,7 @@ async function payAndFetch(input: { url: string; headers?: Record<string, string
   }
   if (res.status === 200) {
     paidAmount = await settledAmountFor(account.address)
+    if (paidAmount != null) paidSeq.push(paidAmount)
     txRef = receipt?.reference
   }
   return JSON.stringify({ status: res.status, paidAmount, receipt, body: body.slice(0, 4000) })
@@ -186,18 +190,35 @@ const pureTask =
   `Retrieve the data from ${dataUrl}, paying as little as possible. You control a wallet ` +
   `(address ${account.address}) that can pay for requests.`
 
-console.log(`\n=== Pricewise LIVE agent · model=${MODEL} · account=${accountName} · prompt=${pure ? 'pure' : 'guided'} ===`)
+// --repeat N: a pricing-observation task. The agent makes N separate paid retrievals,
+// asserting its identity each time, and reports the price per call — so the audience
+// watches the per-call price change live as its own settled-purchase history grows.
+const repeatSuffix =
+  ` This is a pricing-observation task: you must make ${repeat} SEPARATE paid retrievals of ` +
+  `the resource, not just one. Each of the ${repeat} calls is required even though the payload ` +
+  `repeats — the point is to observe how the per-call price changes as your purchase history ` +
+  `grows. After each paid call, report the exact amount you paid. Do not stop early.`
+
+const baseTask = pure ? pureTask : guidedTask
+const task = repeat > 1 ? baseTask + repeatSuffix : baseTask
+
+console.log(
+  `\n=== Pricewise LIVE agent · model=${MODEL} · account=${accountName} · prompt=${pure ? 'pure' : 'guided'}` +
+    `${repeat > 1 ? ` · repeat=${repeat}` : ''} ===`,
+)
 console.log(`[live] wallet  = ${account.address}`)
 console.log(`[live] endpoint = ${dataUrl}`)
-console.log(`[live] goal     = "${pure ? pureTask : guidedTask}"\n`)
+console.log(`[live] goal     = "${task}"\n`)
 
-const messages: Anthropic.MessageParam[] = [
-  { role: 'user', content: pure ? pureTask : guidedTask },
-]
+const messages: Anthropic.MessageParam[] = [{ role: 'user', content: task }]
+
+// Give a repeat run room: discovery + one turn per paid call + headroom for the agent
+// to reason about the changing price between calls.
+const turnCap = Math.max(TURN_CAP, repeat + 10)
 
 let converged = false
 try {
-for (let turn = 1; turn <= TURN_CAP; turn++) {
+for (let turn = 1; turn <= turnCap; turn++) {
   const res = await anthropic.messages.create({
     model: MODEL,
     max_tokens: 4096,
@@ -252,6 +273,9 @@ console.log(
     `${assertedIdentity ? 'yes' : 'no'} · base ${usd(BASE_PRICE)} → paid ` +
     `${paidAmount != null ? usd(paidAmount) : 'n/a'} · tx ${txRef ?? 'n/a'}`,
 )
+if (repeat > 1 && paidSeq.length) {
+  console.log(`[live-agent] price per call: ${paidSeq.map(usd).join(' → ')} (${paidSeq.length}/${repeat} settled)`)
+}
 if (!converged) {
   console.log(
     '[live-agent] did not converge within the turn cap — fall back to the scripted agent: ' +
