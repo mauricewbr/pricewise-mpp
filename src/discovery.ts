@@ -43,13 +43,20 @@ function effectiveAt(purchases: number): { baseUnits: string; discount: number }
   return { baseUnits: toBaseUnits(amount), discount: round2(1 - amount / BASE_PRICE) }
 }
 
-function loyaltyExtension() {
+// Rule-derived tier ladder — the single computed source for both x-loyalty and
+// x-identity-pricing, so the two facets can never disagree.
+function tierLadder() {
   const tiers = []
   for (let tier = 1; tier <= LOYALTY.maxTier; tier++) {
     const threshold = tier * LOYALTY.step
     const e = effectiveAt(threshold)
     tiers.push({ tier, threshold, discount: e.discount, effectiveAmount: e.baseUnits })
   }
+  return tiers
+}
+
+function loyaltyExtension() {
+  const tiers = tierLadder()
   return {
     type: 'reward-only',
     basis: 'settled-purchase-count',
@@ -128,5 +135,18 @@ export function buildOpenApiDoc(mppx: unknown, baseChargeHandler: unknown): Doc 
   }
 
   doc['x-loyalty'] = loyaltyExtension()
+
+  // Mechanism signal: how to obtain the conditional price (not just the schedule).
+  // Reuses the same rule-derived tier array as x-loyalty — no duplicated numbers.
+  doc['x-identity-pricing'] = {
+    mechanism: 'assert-identity-on-request',
+    identityHeader: 'X-Agent',
+    basis: 'settled-purchase-count',
+    note:
+      'Assert your wallet via X-Agent to receive your tier price; the discounted ' +
+      "challenge is bound to that source and only settles if your payment credential's " +
+      'verified source matches. Base price applies to unidentified or unverified callers.',
+    tiers: tierLadder(),
+  }
   return doc
 }
