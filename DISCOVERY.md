@@ -18,7 +18,7 @@ Three discoverability layers, in priority order:
 3. **`x-identity-pricing`** — the *mechanism* signal: how to obtain the conditional price. Assert your wallet via `X-Agent`; the discounted challenge is **bound to that source** (HMAC'd into the challenge id) and only settles if the payment credential's **verified** source matches. A forged claim can't pay the discounted challenge — it falls back to base. Reuses the same rule-derived tiers as `x-loyalty`.
 4. **Prose pointer** — one sentence in the operation `description` (and `llms.txt`) so an LLM agent that doesn't parse the extensions still learns the program exists.
 
-The reference agent (`npm run agent -- regular --discover`) consumes this end-to-end:
+The reference agent (`npm run agent -- --account regular --discover`) consumes this end-to-end:
 reads `x-identity-pricing`, asserts identity, and settles at its tier price — proving the facet is machine-consumable.
 
 ## Registering with MPPScan (manual — do NOT auto-register)
