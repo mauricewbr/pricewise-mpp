@@ -72,15 +72,17 @@ async function readChallenge(): Promise<{ amount: number; dollars: number; note:
   return { amount, dollars: amount / 1e6, note }
 }
 
-// Settle via the mppx client (402 -> pay -> retry), asserting identity via X-Agent.
-async function settle() {
+// Settle via the mppx client (402 -> pay -> retry). Asserts identity only when an
+// `identityHeader` is provided; otherwise sends no identity header (pays base).
+async function settle(identityHeader?: string) {
   // Client SDK: tempo(...) returns the charge method; polyfill:false keeps global fetch intact.
   // expectedChainId pins Moderato (no `testnet` flag on the client API).
   const mppx = Mppx.create({
     methods: [tempo({ account, expectedChainId: MODERATO_CHAIN_ID })],
     polyfill: false,
   })
-  const res = await mppx.fetch(url, { headers: { 'X-Agent': account.address } })
+  const headers = identityHeader ? { [identityHeader]: account.address } : {}
+  const res = await mppx.fetch(url, { headers })
   const body = await res.json().catch(() => '<non-JSON body>')
   let receipt: { status?: string; reference?: string } | undefined
   const receiptB64 = res.headers.get('Payment-Receipt')
@@ -92,6 +94,19 @@ async function settle() {
     }
   }
   return { status: res.status, receipt, body }
+}
+
+// The Payment-Receipt header carries {method,status,timestamp,reference} — no amount.
+// So read the settled amount the server actually recorded from its events feed.
+async function settledAmountFor(addr: string): Promise<number | undefined> {
+  try {
+    const { events } = (await fetch(`${baseUrl}/api/events`).then((r) => r.json())) as {
+      events: { source?: string; amount: number }[]
+    }
+    return events.find((e) => e.source === addr.toLowerCase())?.amount
+  } catch {
+    return undefined
+  }
 }
 
 console.log(`\n=== Pricewise agent · persona=${which} · mode=${mode} ===`)
@@ -106,31 +121,39 @@ if (mode === 'quote') {
 } else if (mode === 'settle') {
   const q = await readChallenge()
   if (q) console.log(`[settle] charging ${which} → ${usd(q.dollars)} (${q.amount})  ${q.note}`)
-  const r = await settle()
+  const r = await settle('X-Agent')
   console.log(`[settle] status  = ${r.status}`)
   console.log(`[settle] receipt = ${r.receipt?.status ?? '?'}`)
   console.log(`[settle] tx      = ${r.receipt?.reference ?? '?'}`)
   console.log(`[settle] body    = ${JSON.stringify(r.body)}`)
 } else {
-  // discover: the *informed* path — learn the mechanism from discovery, then act on it.
-  const doc: any = await fetch(`${baseUrl}/openapi.json`).then((r) => r.json())
+  // discover: derive-then-act. Behavior is decided BY the discovery doc, not narrated.
+  const KNOWN = new Set(['assert-identity-on-request']) // mechanisms this client understands
+  const doc = (await fetch(`${baseUrl}/openapi.json`).then((r) => r.json())) as any
   const idp = doc['x-identity-pricing']
-  const header: string = idp?.identityHeader ?? 'X-Agent'
   const offer = doc.paths?.['/data/{resource}']?.get?.['x-payment-info']?.offers?.[0]
   const basePrice = offer ? Number(offer.amount) / 1e6 : BASE_UNITS / 1e6
 
-  // 1) discovered mechanism
-  console.log(`[discover] mechanism="${idp?.mechanism}" via header "${header}" (basis: ${idp?.basis})`)
-  // 2) decide to identify (returning persona with a funded durable key)
-  console.log(`[identify] asserting ${account.address} via ${header}`)
-  // 3) act: settle along the identity-asserted path
-  const q = await readChallenge()
-  const r = await settle()
-  // 4) trace: base vs paid
-  const paid = q ? q.dollars : basePrice
+  // Recognize-or-abstain: only assert identity if we understand the advertised mechanism.
+  const recognized = !!idp && KNOWN.has(idp.mechanism)
+  const header: string | undefined = recognized ? (idp.identityHeader ?? 'X-Agent') : undefined
+
+  if (recognized) {
+    console.log(`[discover] recognized mechanism "${idp.mechanism}" → assert identity via "${header}"`)
+    console.log(`[identify] asserting ${account.address} via ${header}`)
+  } else {
+    console.log(
+      `[discover] ${idp ? `unrecognized mechanism "${idp.mechanism}"` : 'no x-identity-pricing'}` +
+        ' → paying base price (no identity asserted)',
+    )
+  }
+
+  // Single round trip: settle once with whatever discovery told us to do.
+  const r = await settle(header)
+  // Paid amount comes from the server's recorded settlement (receipt has no amount).
+  const paid = (await settledAmountFor(account.address)) ?? basePrice
   console.log(
-    `[settled] base ${usd(basePrice)} → paid ${usd(paid)}` +
-      (q && q.note.startsWith('loyalty') ? ` (${q.note})` : '') +
+    `[settled] base ${usd(basePrice)} → paid ${usd(paid)} (source: /api/events)` +
       ` · receipt ${r.receipt?.status ?? '?'} · tx ${r.receipt?.reference ?? '?'}`,
   )
 }
