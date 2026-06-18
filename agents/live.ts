@@ -177,9 +177,10 @@ const SYSTEM =
 const guidedTask =
   `You need to retrieve data from a paid API endpoint at ${dataUrl}. You control a wallet with ` +
   `address ${account.address} and can pay for requests. Your goal is to obtain the data while ` +
-  `paying as little as possible. The service may publish information about its pricing; some ` +
-  `services offer better prices to identifiable returning customers. Investigate and obtain the ` +
-  `data at the lowest price you can justify.`
+  `paying as little as possible. Investigate the service thoroughly BEFORE paying — payments are ` +
+  `final and cannot be refunded, so understand the full pricing picture first. Services often ` +
+  `publish a machine-readable self-description of their API; look for one. Some services offer ` +
+  `better prices to identifiable returning customers. Obtain the data at the lowest price you can justify.`
 
 const pureTask =
   `Retrieve the data from ${dataUrl}, paying as little as possible. You control a wallet ` +
@@ -195,6 +196,7 @@ const messages: Anthropic.MessageParam[] = [
 ]
 
 let converged = false
+try {
 for (let turn = 1; turn <= TURN_CAP; turn++) {
   const res = await anthropic.messages.create({
     model: MODEL,
@@ -230,6 +232,19 @@ for (let turn = 1; turn <= TURN_CAP; turn++) {
     toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: out })
   }
   messages.push({ role: 'user', content: toolResults })
+}
+} catch (e) {
+  // Stage-safe: never dump a stack trace on a projector. One clean line + the fallback.
+  if (e instanceof Anthropic.APIError) {
+    console.error(`\n[live] Anthropic API error (${e.status ?? '?'}): ${e.message}`)
+  } else {
+    console.error(`\n[live] error: ${(e as Error).message}`)
+  }
+  console.error(
+    '[live] live agent unavailable — fall back to the scripted agent: ' +
+      'npm run agent -- --account regular --discover',
+  )
+  process.exit(1)
 }
 
 console.log(
