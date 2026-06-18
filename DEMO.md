@@ -58,6 +58,41 @@ npm run agent -- --account newagent --as regular --settle
 Create + fund: `npx mppx account create --account <name>` then `npx mppx account fund --account <name> --network testnet`.
 Addresses are whatever the keychain holds — list them with `npx mppx account list`.
 
+## Live Claude agent (headline) + fallback ladder
+
+`npm run live` runs a **real Claude agent** (Anthropic API, `claude-opus-4-8`) that is given only
+a goal, its wallet, and the endpoint — and discovers the identity-pricing mechanism from
+`/openapi.json` and decides on its own to assert its identity. Honest framing: this proves an
+agent *can* discover and act on the mechanism end to end — not that every agent already does.
+
+```
+ANTHROPIC_API_KEY=…            # in .env
+npm run dev                    # server (Terminal A)
+npm run live                   # default: guided prompt, regular wallet
+npm run live -- --pure         # stripped prompt, no pricing hint (higher variance)
+npm run live -- --account regular --url https://<tunnel>   # off-machine / real-URL flourish
+```
+
+Three-rung **fallback ladder** — rehearse the live agent and pick by its convergence rate:
+
+1. **Live Claude agent** (`npm run live`) — the headline. Run it live if rehearsals converge reliably (~9/10).
+2. **Scripted agent** (`npm run agent -- --account regular --discover`) — deterministic, same logical outcome (discovered→identified→settled). Fall to this if the live agent misbehaves on stage.
+3. **Backup clip** — a recording of a good live run. Fall to this if everything is on fire; narrate "this is a real Claude agent reasoning about pricing."
+
+If shaky, show the clip and narrate — still impressive, zero stage risk.
+
+### Exposing the server (tunnel) — doubles as the "real hosted API" story
+
+The agent can hit `http://localhost:3000` when it runs on the same machine. For an off-machine run
+or the "real URL" flourish, expose the local server with a tunnel and pass it via `--url`:
+
+```
+cloudflared tunnel --url http://localhost:3000     # or: ngrok http 3000
+npm run live -- --url https://<your-tunnel-host>
+```
+
+The same tunnel makes `/openapi.json` publicly fetchable — the "actually callable/hostable API" beat.
+
 ## Narration reminder
 
 The discount story is the **recipient-received amount**: regular pays **$0.085** vs new's **$0.10**.
