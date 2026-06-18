@@ -41,6 +41,7 @@ export interface Stats {
 
 const events: PurchaseEvent[] = []
 const histories = new Map<string, SourceHistory>()
+const consumedChallenges = new Set<string>() // single-use guard for discounted challenges
 
 const RECENT_WINDOW_MS = 60_000
 
@@ -83,6 +84,16 @@ export const store = {
       purchases,
       totalSpend: Math.round(purchases * 0.1 * 1e4) / 1e4,
     })
+  },
+
+  /** Whether a discounted challenge id has already been settled (replay guard). */
+  isConsumed(challengeId: string): boolean {
+    return consumedChallenges.has(challengeId)
+  },
+
+  /** Mark a discounted challenge id as settled — single-use. */
+  consumeChallenge(challengeId: string): void {
+    consumedChallenges.add(challengeId)
   },
 
   /** How many events landed in the last 60s. */

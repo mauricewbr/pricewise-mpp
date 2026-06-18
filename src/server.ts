@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { Mppx, tempo } from 'mppx/hono'
-import { Credential } from 'mppx'
+import { Credential, Challenge } from 'mppx'
 import { priceFor } from './pricing/engine'
 import { loyalty, BASE_PRICE } from './pricing/rules'
 import { store } from './store'
@@ -26,6 +26,8 @@ type Variables = {
   amount: number
   breakdown: { amount: number; note: string }[]
   resource: string
+  challengeId?: string
+  boundDiscount: boolean
 }
 
 const secretKey = process.env.MPP_SECRET_KEY ?? generateDevSecret()
@@ -81,41 +83,134 @@ app.get('/openapi.json', (c) => {
 })
 app.get('/llms.txt', (c) => c.text(LLMS_TXT))
 
+const toUnits = (dollars: number) => String(Math.round(dollars * 1e6))
+
+/** Parse the incoming credential without throwing on the first (unpaid) leg. */
+function tryCredential(req: Request) {
+  try {
+    return Credential.fromRequest(req)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Read the server-bound metadata from a credential's challenge. On the wire the
+ * binding lives in the base64url `opaque` string (parsed `meta` is undefined),
+ * so decode it. The `id` HMAC already guarantees `opaque` is untampered.
+ */
+function boundMeta(challenge: { opaque?: string; meta?: Record<string, string> }):
+  | Record<string, string>
+  | undefined {
+  if (challenge.meta) return challenge.meta
+  if (!challenge.opaque) return undefined
+  try {
+    return JSON.parse(Buffer.from(challenge.opaque, 'base64url').toString())
+  } catch {
+    return undefined
+  }
+}
+
+/** Breakdown for a discounted price, derived from the bound base-unit amount. */
+function discountBreakdown(boundPrice: string): { amount: number; note: string }[] {
+  const dollars = Number(boundPrice) / 1e6
+  const pct = Math.round((1 - dollars / BASE_PRICE) * 100)
+  return [
+    { amount: BASE_PRICE, note: 'base' },
+    { amount: dollars, note: `loyalty: tier ${Math.round(pct / 5)} −${pct}% (identity-verified)` },
+  ]
+}
+
 app.get(
   '/data/:resource',
-  // Stage 1: compute the loyalty-adjusted price from the (unverified) X-Agent hint,
-  // so the discount shows up in the 402 challenge — then hand off to the charge
-  // middleware with that amount.
+  // Stage 1 — IDENTITY-CONDITIONAL PRICING (single round trip, source-bound).
+  //
+  // First leg (no credential): price from the asserted X-Agent identity and BIND
+  // that source + price into the challenge via `meta` (the SDK HMACs it into the
+  // challenge `id`, so it's tamper-evident). The discount shows up in the 402.
+  //
+  // Retry leg (credential present): honor the *presented* challenge — do NOT
+  // re-derive from the (attacker-controlled) header, which would loop. For a
+  // discounted (source-bound) challenge, enforce that the credential's VERIFIED
+  // source matches the bound source (and the challenge isn't replayed) BEFORE the
+  // charge middleware settles. On mismatch/replay we downgrade to a base-price
+  // challenge, so a forged identity claim can't settle the discount.
   async (c, next) => {
     const hintAddr = toAddress(c.req.header('X-Agent'))
-    console.log('[req] X-Agent =', hintAddr) // <-- header pass-through probe (test #5)
+    console.log('[req] X-Agent =', hintAddr)
     const resource = c.req.param('resource')
-    const ctx = {
-      source: hintAddr,
-      resource,
-      now: new Date(),
-      recentRequests: store.recentRequestCount(),
-      history: store.history(hintAddr),
+
+    let amount: number
+    let breakdown: { amount: number; note: string }[]
+    let meta: Record<string, string> | undefined
+    let boundDiscount = false
+    const cred = tryCredential(c.req.raw)
+
+    if (!cred) {
+      // First leg: quote from the asserted identity; bind source+price if discounted.
+      const ctx = {
+        source: hintAddr,
+        resource,
+        now: new Date(),
+        recentRequests: store.recentRequestCount(),
+        history: store.history(hintAddr),
+      }
+      const quoted = priceFor(ctx, BASE_PRICE, [loyalty])
+      amount = quoted.amount
+      breakdown = quoted.breakdown
+      if (hintAddr && amount < BASE_PRICE) {
+        meta = { src: hintAddr, price: toUnits(amount) }
+        boundDiscount = true
+      }
+    } else {
+      // Retry leg: honor the challenge the client is actually paying.
+      const challengeOk = Challenge.verify(cred.challenge, { secretKey })
+      const bound = boundMeta(cred.challenge) // {src, price, _mppx_scope} (decoded from opaque)
+      const boundSrc = bound?.src
+      const boundPrice = bound?.price
+      if (challengeOk && boundSrc && boundPrice) {
+        // A source-bound discounted challenge — verify the payer controls it.
+        const paidSrc = toAddress(cred.source)
+        const replay = store.isConsumed(cred.challenge.id)
+        if (paidSrc === boundSrc && !replay) {
+          amount = Number(boundPrice) / 1e6
+          breakdown = discountBreakdown(boundPrice)
+          meta = { src: boundSrc, price: boundPrice }
+          boundDiscount = true
+        } else {
+          // Forged identity claim or replay → forfeit the discount, charge base.
+          console.log(
+            '[identity-pricing] discount denied:',
+            replay ? `challenge ${cred.challenge.id.slice(0, 10)}… replayed` : `bound ${boundSrc} != payer ${paidSrc}`,
+          )
+          amount = BASE_PRICE
+          breakdown = [
+            { amount: BASE_PRICE, note: 'base' },
+            { amount: BASE_PRICE, note: replay ? 'loyalty: challenge already used → base' : 'loyalty: identity not verified → base' },
+          ]
+        }
+      } else {
+        // Unbound (base-price) challenge being paid — honor base.
+        amount = BASE_PRICE
+        breakdown = [{ amount: BASE_PRICE, note: 'base' }]
+      }
     }
-    const { amount, breakdown } = priceFor(ctx, BASE_PRICE, [loyalty])
-    // Visible during free challenge-only iteration (this leg runs even when unpaid).
-    console.log('[price]', hintAddr ?? 'anon', amount, breakdown.map((b) => b.note))
+
+    console.log('[price]', hintAddr ?? 'anon', amount, breakdown.map((b) => b.note), boundDiscount ? '(bound)' : '')
     c.set('amount', amount)
     c.set('breakdown', breakdown)
     c.set('resource', resource)
-    return mppx.charge({ amount: String(amount), description: resource })(c, next)
+    c.set('challengeId', cred?.challenge.id)
+    c.set('boundDiscount', boundDiscount)
+    return mppx.charge({ amount: String(amount), description: resource, ...(meta ? { meta } : {}) })(c, next)
   },
   // Stage 2: only reached after a verified payment (the charge middleware called next()).
   async (c) => {
     const paidAddr = toAddress(Credential.fromRequest(c.req.raw).source)
-    const hintAddr = toAddress(c.req.header('X-Agent'))
-    console.log('[paid] source =', paidAddr) // <-- confirms .source is populated (test #1)
-    if (hintAddr && paidAddr !== hintAddr) {
-      // Claimed someone else's identity. Reward-only loyalty means no harm — they
-      // simply don't get the claimed account's discount. Just log and credit the
-      // real payer.
-      console.log('[mismatch] hint', hintAddr, '!= payer', paidAddr)
-    }
+    console.log('[paid] source =', paidAddr)
+    // Single-use: mark the discounted challenge consumed so it can't be replayed.
+    const id = c.get('challengeId')
+    if (id && c.get('boundDiscount')) store.consumeChallenge(id)
     store.recordPurchase(paidAddr, c.get('amount'), c.get('resource'), c.get('breakdown'))
     return c.json({ data: `payload for ${c.get('resource')}` })
   },
