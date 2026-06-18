@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node --env-file-if-exists=.env --import tsx src/server.ts",
     "agent": "node --env-file-if-exists=.env --import tsx agents/run.ts",
+    "seed": "node --env-file-if-exists=.env --import tsx agents/seed.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

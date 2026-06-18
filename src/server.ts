@@ -83,6 +83,24 @@ app.get('/openapi.json', (c) => {
 })
 app.get('/llms.txt', (c) => c.text(LLMS_TXT))
 
+// --- Admin seed (DEV/DEMO ONLY, gated) ---
+// Sets a wallet's starting settled-purchase count so a live threshold crossing can
+// be demoed. This mutates loyalty pricing state, so it's disabled unless
+// PRICEWISE_ALLOW_SEED=1. It only sets the STARTING count — real settles do the crossing.
+if (process.env.PRICEWISE_ALLOW_SEED === '1') {
+  app.post('/admin/seed', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { address?: string; purchases?: number }
+    const addr = toAddress(body.address)
+    if (!addr || typeof body.purchases !== 'number' || body.purchases < 0) {
+      return c.json({ error: 'address and non-negative purchases required' }, 400)
+    }
+    store.seed(addr, body.purchases)
+    console.log(`[admin] seeded ${addr} -> ${body.purchases} prior purchases`)
+    return c.json({ ok: true, address: addr, purchases: body.purchases })
+  })
+  console.log('[admin] seed endpoint enabled at POST /admin/seed (PRICEWISE_ALLOW_SEED=1)')
+}
+
 const toUnits = (dollars: number) => String(Math.round(dollars * 1e6))
 
 /** Parse the incoming credential without throwing on the first (unpaid) leg. */
