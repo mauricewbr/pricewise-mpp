@@ -26,10 +26,29 @@ Open the dashboard (Terminal A's URL) on the projector before starting.
 - **Default mode is `--quote`** (free, safe) — an accidental run never spends funds.
 - Each run is **one-shot**; re-run manually to control timing. No auto-loop.
 
+## Negative scenario — a malicious agent claiming someone else's identity
+
+`--as <name>` pays from `--account` but asserts a *different* wallet in `X-Agent` — a forged
+identity claim fishing for that wallet's discount:
+
+```
+npm run agent -- --account newagent --as regular --settle
+```
+
+- `[forge]` lines spell out: paying from newagent, but asserting regular's address.
+- The challenge *quotes* regular's $0.085 (quoting is free) — then settlement is **DENIED**
+  (`402`, no row, no funds moved): the challenge is bound to regular's wallet, but the payer
+  is newagent. Server logs `[identity-pricing] discount denied: bound … != payer …`.
+- Contrast immediately with the honest `--account regular --settle` (settles $0.085) — same
+  claimed price, but only the wallet that **controls** regular can actually pay it.
+
+`--as` also works with `--quote` (show it can *see* the price for free) and `--discover`.
+
 ## Suggested flow
 
 1. `--quote` both accounts to show the **price difference** live (free rehearsal, no rows).
 2. `--account regular --settle` then `--account newagent --settle` to drop two rows on the dashboard — the discounted row is highlighted with a `−15%` badge next to the full-price one.
+3. The forge attempt above — claimed price visible, settlement denied — to show the discount is *earned and bound*, not just asserted.
 
 ## Funded accounts (distinct wallets — that's the point)
 
