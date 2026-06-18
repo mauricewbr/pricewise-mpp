@@ -26,6 +26,21 @@ const account = await resolveAccount(name).catch((e) => {
   process.exit(1)
 })
 
+// --as <name|0xaddr>: assert a DIFFERENT identity than the one paying. This models a
+// malicious agent claiming someone else's wallet to fish for their discount. The payment
+// still comes from `account` (we control its key); X-Agent carries the claimed address.
+// (A real attacker only knows the victim's public address; resolving a keychain name here
+// is just demo convenience — only the address is used, never the claimed account's key.)
+const asIdx = args.indexOf('--as')
+const claim = asIdx >= 0 ? args[asIdx + 1] : undefined
+const claimedAddress = claim
+  ? /^0x[0-9a-fA-F]{40}$/.test(claim)
+    ? claim
+    : (await resolveAccount(claim).then((a) => a.address)).toString()
+  : undefined
+const assertedAddress = claimedAddress ?? account.address
+const forging = !!claimedAddress && claimedAddress.toLowerCase() !== account.address.toLowerCase()
+
 const baseUrl = process.env.SERVER_URL ?? 'http://localhost:3000'
 const url = `${baseUrl}/data/foo`
 
@@ -42,7 +57,7 @@ const BASE_UNITS = 100_000 // full price ($0.10) in pathUSD base units (6 decima
 
 // Free read of the 402 challenge via plain fetch — never moves funds.
 async function readChallenge(): Promise<{ amount: number; dollars: number; note: string } | null> {
-  const res = await fetch(url, { headers: { 'X-Agent': account.address } })
+  const res = await fetch(url, { headers: { 'X-Agent': assertedAddress } })
   if (res.status !== 402) {
     console.log(`[warn] expected a 402 challenge, got HTTP ${res.status}`)
     return null
@@ -69,8 +84,12 @@ async function settle(identityHeader?: string) {
     methods: [tempo({ account, expectedChainId: MODERATO_CHAIN_ID })],
     polyfill: false,
   })
-  const headers = identityHeader ? { [identityHeader]: account.address } : {}
-  const res = await mppx.fetch(url, { headers })
+  const headers = identityHeader ? { [identityHeader]: assertedAddress } : {}
+  const res = await mppx.fetch(url, { headers }).catch((e: Error) => e)
+  if (res instanceof Error) {
+    // mppx may reject (e.g. the server denied a forged discount and re-challenged at base).
+    return { status: 402, receipt: undefined, body: `<payment rejected: ${res.message}>` }
+  }
   const body = await res.json().catch(() => '<non-JSON body>')
   let receipt: { status?: string; reference?: string } | undefined
   const receiptB64 = res.headers.get('Payment-Receipt')
@@ -97,23 +116,47 @@ async function settledAmountFor(addr: string): Promise<number | undefined> {
   }
 }
 
-console.log(`\n=== Pricewise agent · account=${name} · mode=${mode} ===`)
+console.log(
+  `\n=== Pricewise agent · account=${name}${forging ? ` · CLAIMING ${claim}` : ''} · mode=${mode} ===`,
+)
 console.log(`[agent] address = ${account.address}`)
+if (forging) {
+  console.log(`[forge] paying from ${account.address}`)
+  console.log(`[forge] but asserting X-Agent = ${assertedAddress} (a wallet it does NOT control)`)
+}
+
+// A settle/discover result is a real success only when the data was served (HTTP 200).
+function reportSettle(r: { status: number; receipt?: { status?: string; reference?: string }; body: unknown }) {
+  if (r.status === 200) {
+    console.log(`[settle] status  = 200 (paid)`)
+    console.log(`[settle] receipt = ${r.receipt?.status ?? '?'}`)
+    console.log(`[settle] tx      = ${r.receipt?.reference ?? '?'}`)
+    console.log(`[settle] body    = ${JSON.stringify(r.body)}`)
+  } else {
+    console.log(`[settle] status  = ${r.status} (REJECTED — no settlement)`)
+    if (forging) {
+      console.log(
+        `[forge] discount DENIED: the challenge is bound to ${assertedAddress}, but the payer is ` +
+          `${account.address}. A forged identity claim can't settle the discount.`,
+      )
+    }
+  }
+}
 
 if (mode === 'quote') {
   const q = await readChallenge()
   if (q) {
     console.log(`[quote] ${name} → quoted ${usd(q.dollars)} (${q.amount})  ${q.note}`)
+    if (forging) console.log(`[quote] ^ that is ${claim}'s price — quoting is free; settling is where the binding bites`)
     console.log('[quote] no payment made — free rehearsal path, no dashboard row')
   }
 } else if (mode === 'settle') {
   const q = await readChallenge()
-  if (q) console.log(`[settle] charging ${name} → ${usd(q.dollars)} (${q.amount})  ${q.note}`)
-  const r = await settle('X-Agent')
-  console.log(`[settle] status  = ${r.status}`)
-  console.log(`[settle] receipt = ${r.receipt?.status ?? '?'}`)
-  console.log(`[settle] tx      = ${r.receipt?.reference ?? '?'}`)
-  console.log(`[settle] body    = ${JSON.stringify(r.body)}`)
+  if (q) {
+    const who = forging ? `${claim} (claimed)` : name
+    console.log(`[settle] challenge quotes ${who} → ${usd(q.dollars)} (${q.amount})  ${q.note}`)
+  }
+  reportSettle(await settle('X-Agent'))
 } else {
   // discover: derive-then-act. Behavior is decided BY the discovery doc, not narrated.
   const KNOWN = new Set(['assert-identity-on-request']) // mechanisms this client understands
@@ -128,7 +171,7 @@ if (mode === 'quote') {
 
   if (recognized) {
     console.log(`[discover] recognized mechanism "${idp.mechanism}" → assert identity via "${header}"`)
-    console.log(`[identify] asserting ${account.address} via ${header}`)
+    console.log(`[identify] asserting ${assertedAddress} via ${header}`)
   } else {
     console.log(
       `[discover] ${idp ? `unrecognized mechanism "${idp.mechanism}"` : 'no x-identity-pricing'}` +
@@ -138,10 +181,14 @@ if (mode === 'quote') {
 
   // Single round trip: settle once with whatever discovery told us to do.
   const r = await settle(header)
-  // Paid amount comes from the server's recorded settlement (receipt has no amount).
-  const paid = (await settledAmountFor(account.address)) ?? basePrice
-  console.log(
-    `[settled] base ${usd(basePrice)} → paid ${usd(paid)} (source: /api/events)` +
-      ` · receipt ${r.receipt?.status ?? '?'} · tx ${r.receipt?.reference ?? '?'}`,
-  )
+  if (r.status === 200) {
+    // Paid amount comes from the server's recorded settlement (receipt has no amount).
+    const paid = (await settledAmountFor(account.address)) ?? basePrice
+    console.log(
+      `[settled] base ${usd(basePrice)} → paid ${usd(paid)} (source: /api/events)` +
+        ` · receipt ${r.receipt?.status ?? '?'} · tx ${r.receipt?.reference ?? '?'}`,
+    )
+  } else {
+    reportSettle(r)
+  }
 }
