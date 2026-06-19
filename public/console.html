@@ -35,7 +35,8 @@
         padding: 20px 14px;
         display: flex; flex-direction: column; gap: 4px;
       }
-      .wordmark { font-weight: 600; letter-spacing: -0.01em; font-size: 15px; padding: 4px 10px 18px; }
+      .wordmark { display: flex; align-items: center; gap: 9px; font-weight: 600; letter-spacing: -0.01em; font-size: 15px; padding: 4px 10px 18px; }
+      .wordmark .logo { display: block; flex: none; }
       .navitem {
         display: block; width: 100%; text-align: left; cursor: pointer;
         background: none; border: 0; font: inherit; color: var(--secondary);
@@ -127,7 +128,14 @@
   <body>
     <div class="app">
       <nav class="side">
-        <div class="wordmark">Pricewise</div>
+        <div class="wordmark">
+          <svg class="logo" width="20" height="20" viewBox="0 0 20 20" fill="none" role="img" aria-label="Pricewise">
+            <rect x="2.5" y="3.8" width="7" height="3" rx="1" fill="var(--ink)" />
+            <rect x="6.5" y="8.5" width="7" height="3" rx="1" fill="var(--ink)" />
+            <rect x="10.5" y="13.2" width="7" height="3" rx="1" fill="var(--ink)" />
+          </svg>
+          <span>Pricewise</span>
+        </div>
         <button class="navitem active" data-view="plans">Plans</button>
         <button class="navitem" data-view="activity">Activity</button>
       </nav>

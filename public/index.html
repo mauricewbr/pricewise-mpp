@@ -22,7 +22,8 @@
         font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       }
       .wrap { max-width: 980px; margin: 0 auto; padding: 28px 20px 60px; }
-      header.top { display: flex; align-items: baseline; gap: 12px; margin-bottom: 22px; }
+      header.top { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+      header.top .logo { display: block; flex: none; }
       h1 { font-size: 26px; margin: 0; letter-spacing: -0.02em; }
       .sub { color: var(--muted); font-size: 13px; }
       .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 26px; }
@@ -59,6 +60,11 @@
   <body>
     <div class="wrap">
       <header class="top">
+        <svg class="logo" width="24" height="24" viewBox="0 0 20 20" fill="none" role="img" aria-label="Pricewise">
+          <rect x="2.5" y="3.8" width="7" height="3" rx="1" fill="var(--text)" />
+          <rect x="6.5" y="8.5" width="7" height="3" rx="1" fill="var(--text)" />
+          <rect x="10.5" y="13.2" width="7" height="3" rx="1" fill="var(--text)" />
+        </svg>
         <h1>Pricewise</h1>
         <span class="sub"><span class="dot"></span>live settled charges · Tempo Moderato</span>
       </header>
