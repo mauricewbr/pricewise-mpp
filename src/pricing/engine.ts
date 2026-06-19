@@ -7,5 +7,9 @@ export function priceFor(ctx: PricingContext, base: number, rules: PricingRule[]
     amount = adj.amount
     breakdown.push({ amount: adj.amount, note: `${rule.name}: ${adj.note}` })
   }
-  return { amount: Math.max(0.01, Math.round(amount * 1e4) / 1e4), breakdown }
+  // Round to base-unit precision (1e6), not 4 decimals. Stage 2 plan prices are exact
+  // integer base-unit amounts; the old 4-decimal round / $0.01 floor would corrupt an
+  // edited price that isn't a multiple of $0.0001. Floor at 1 base unit (validation
+  // already guarantees every plan price is > 0).
+  return { amount: Math.max(1e-6, Math.round(amount * 1e6) / 1e6), breakdown }
 }
