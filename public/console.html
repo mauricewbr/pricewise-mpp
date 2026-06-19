@@ -35,13 +35,14 @@
         padding: 20px 14px;
         display: flex; flex-direction: column; gap: 4px;
       }
-      .wordmark { display: flex; align-items: center; gap: 9px; font-weight: 600; letter-spacing: -0.01em; font-size: 15px; padding: 4px 10px 18px; }
+      .wordmark { display: flex; align-items: center; gap: 11px; font-weight: 600; letter-spacing: -0.01em; font-size: 19px; padding: 6px 10px 22px; }
       .wordmark .logo { display: block; flex: none; }
       .navitem {
-        display: block; width: 100%; text-align: left; cursor: pointer;
+        display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
         background: none; border: 0; font: inherit; color: var(--secondary);
         padding: 7px 10px; border-radius: 6px; border-left: 2px solid transparent;
       }
+      .navitem .ic { flex: none; color: currentColor; }
       .navitem:hover { color: var(--ink); background: #f4f5f6; }
       .navitem.active { color: var(--accent); font-weight: 600; border-left-color: var(--accent); }
       .navitem:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -95,14 +96,24 @@
       @keyframes flashrow { from { background: #eef1fb; } to { background: transparent; } }
       .rung.flash { animation: flashrow 600ms ease-out; }
       @media (prefers-reduced-motion: reduce) { .rung.flash { animation: none; } }
-      /* live watcher banner */
-      .watch {
-        display: flex; align-items: center; gap: 8px; margin: 14px 0 18px;
-        font-size: 12px; color: var(--secondary);
-      }
-      .watch .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-      .watch .who { font-family: var(--mono); color: var(--ink); }
-      .watch .pay { font-family: var(--mono); color: var(--ink); font-weight: 600; }
+      /* dashboard stat cards */
+      .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+      .stat { background: var(--surface); border: 1px solid var(--hairline); border-radius: 10px; padding: 16px 18px; }
+      .stat .label { color: var(--secondary); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+      .stat .value { font-family: var(--mono); font-size: 26px; font-weight: 600; margin-top: 6px; }
+      .stat .note { color: var(--secondary); font-size: 12px; margin-top: 3px; font-family: var(--mono); }
+      /* discount badge + clickable address */
+      .badge { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #e7f3ec; color: var(--green); font-family: var(--ui); }
+      tr.discounted { background: rgba(31, 122, 77, 0.05); }
+      .addr-link { font-family: var(--mono); color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-decoration-color: var(--hairline); text-underline-offset: 2px; }
+      .addr-link:hover { color: var(--accent); text-decoration-color: var(--accent); }
+      .addr-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      /* customer detail */
+      .kv { display: grid; grid-template-columns: 150px 1fr; gap: 8px 16px; font-size: 13px; }
+      .kv dt { color: var(--secondary); }
+      .kv dd { margin: 0; font-family: var(--mono); }
+      .back { background: none; border: 0; color: var(--secondary); font: inherit; cursor: pointer; padding: 0 0 12px; }
+      .back:hover { color: var(--ink); }
       /* form */
       .field { margin-bottom: 16px; }
       label { display: block; font-size: 12px; color: var(--secondary); margin-bottom: 5px; }
@@ -129,15 +140,29 @@
     <div class="app">
       <nav class="side">
         <div class="wordmark">
-          <svg class="logo" width="20" height="20" viewBox="0 0 20 20" fill="none" role="img" aria-label="Pricewise">
+          <svg class="logo" width="26" height="26" viewBox="0 0 20 20" fill="none" role="img" aria-label="Pricewise">
             <rect x="2.5" y="3.8" width="15" height="3" rx="1.5" fill="var(--ink)" />
             <rect x="2.5" y="8.5" width="10.5" height="3" rx="1.5" fill="var(--ink)" />
             <rect x="2.5" y="13.2" width="6" height="3" rx="1.5" fill="var(--ink)" />
           </svg>
           <span>Pricewise</span>
         </div>
-        <button class="navitem active" data-view="plans">Plans</button>
-        <button class="navitem" data-view="activity">Activity</button>
+        <button class="navitem active" data-view="plans">
+          <svg class="ic" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.4l5.6 2.8L8 8 2.4 5.2 8 2.4Z"/><path d="M2.4 8.2 8 11l5.6-2.8"/><path d="M2.4 10.9 8 13.7l5.6-2.8"/></svg>
+          <span>Plans</span>
+        </button>
+        <button class="navitem" data-view="dashboard">
+          <svg class="ic" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.4 7.2 8 2.6l5.6 4.6"/><path d="M3.7 6.3V13.2h8.6V6.3"/></svg>
+          <span>Dashboard</span>
+        </button>
+        <button class="navitem" data-view="activity">
+          <svg class="ic" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 8h2.7l1.6-4.2 2.9 8.4 1.6-4.2h3.6"/></svg>
+          <span>Activity</span>
+        </button>
+        <button class="navitem" data-view="customers">
+          <svg class="ic" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="5.4" r="2.4"/><path d="M3.6 13.4c0-2.4 2-3.9 4.4-3.9s4.4 1.5 4.4 3.9"/></svg>
+          <span>Customers</span>
+        </button>
       </nav>
       <main id="main"><!-- rendered --></main>
     </div>
@@ -163,7 +188,8 @@
         activeId: null,
         active: null,
         events: [],
-        watchPrevUnits: null, // base-unit price the watched identity last showed (for flash)
+        flashPrevUnits: null, // base-unit price of the last settlement (for the ladder flash)
+        currentCustomer: null,
         draft: null,
       }
 
@@ -183,35 +209,32 @@
         state.active = active || null
         state.activeId = active ? active.id : null
         state.events = events || []
+        // 'create' is intentionally not re-rendered on poll (would clobber form focus).
         if (state.view === 'plans') renderPlans()
         else if (state.view === 'activity') renderActivity()
+        else if (state.view === 'dashboard') renderDashboard()
+        else if (state.view === 'customers') renderCustomers()
+        else if (state.view === 'customer') renderCustomer()
       }
 
-      // The identity to track for the live ladder: the most recent settled charge.
-      function watched() {
-        const e = state.events[0]
-        if (!e) return null
-        return { addr: e.source, units: Math.round(e.amount * 1e6) }
-      }
+      const usdD = (dollars) => fmtUsd(Math.round(dollars * 1e6)) // dollars -> "$x" via base units
+      const eventUnits = (e) => Math.round(e.amount * 1e6)
+      const eventBase = (e) => (e.breakdown && e.breakdown[0] ? e.breakdown[0].amount : e.amount) // dollars
+      const eventDiscountPct = (e) => { const b = eventBase(e); return b > e.amount ? Math.round((1 - e.amount / b) * 100) : 0 }
 
-      // ---- ladder (the signature element) ----
-      // rows: base + each tier; mark the row matching the watched identity's last price.
-      function ladderHtml(plan, live) {
-        const w = live ? watched() : null
-        const rows = []
-        const baseOn = w && w.units === plan.basePrice
-        rows.push(rung('base', '—', plan.basePrice, plan.basePrice, baseOn, false))
-        for (const t of plan.tiers) {
-          const on = w && w.units === t.price
-          rows.push(rung(`tier`, t.threshold, t.price, plan.basePrice, on, true))
-        }
+      // ---- tier ladder (the signature element) ----
+      // The structure (base + tiers). It reacts to live settlements by flashing the rung
+      // whose price matches the most recent settled charge — not tied to any one address.
+      function ladderHtml(plan) {
+        const rows = [rung('base', '—', plan.basePrice, plan.basePrice, false)]
+        for (const t of plan.tiers) rows.push(rung('tier', t.threshold, t.price, plan.basePrice, true))
         return `<div class="ladder" role="table" aria-label="Tier ladder">${rows.join('')}</div>`
       }
-      function rung(kind, threshold, price, base, on, discounted) {
+      function rung(kind, threshold, price, base, discounted) {
         const thr = kind === 'base' ? 'base' : `≥ ${threshold} calls`
         const off = discounted ? `  −${pct(base, price)}%` : ''
         return (
-          `<div class="rung${on ? ' on' : ''}${discounted ? ' discounted' : ''}" role="row">` +
+          `<div class="rung${discounted ? ' discounted' : ''}" role="row" data-price="${price}">` +
           `<span class="marker" aria-hidden="true">▸</span>` +
           `<span class="thr">${esc(thr)}</span>` +
           `<span class="price">${fmtUsd(price)}<span class="thr">${off}</span></span>` +
@@ -221,10 +244,6 @@
 
       // ---- views ----
       function renderPlans() {
-        const w = watched()
-        const watchBanner = w
-          ? `<div class="watch"><span class="dot"></span>live · watching <span class="who">${esc(shortAddr(w.addr))}</span> · currently paying <span class="pay">${fmtUsd(w.units)}</span></div>`
-          : ''
         const cards = state.plans.length
           ? state.plans
               .map((p) => {
@@ -235,7 +254,7 @@
                   `<span class="pill${isActive ? ' active' : ''}">${isActive ? 'active' : 'inactive'}</span></div>` +
                   `<div class="meta">base price</div><div class="base-price">${fmtUsd(p.basePrice)} <span class="thr" style="color:var(--secondary)">(${p.basePrice} base units)</span></div>` +
                   `<div class="meta">tier ladder</div>` +
-                  ladderHtml(p, isActive) +
+                  ladderHtml(p) +
                   `</div>`
                 )
               })
@@ -244,42 +263,147 @@
         $('#main').innerHTML =
           `<div class="head"><div><h1>Plans</h1><div class="sub">Pricing plans for identity-conditional pricing. The active plan drives every live quote and settlement.</div></div>` +
           `<button class="btn primary" id="newplan">New plan</button></div>` +
-          (state.activeId ? watchBanner : '') +
           cards
         $('#newplan').onclick = openCreate
         applyFlash()
       }
 
-      // Flash the active plan's matched rung when the watched price changes.
+      // Flash the active plan's tier matching the newest settlement, when it changes.
       function applyFlash() {
-        const w = watched()
-        const units = w ? w.units : null
-        if (units !== state.watchPrevUnits && state.watchPrevUnits !== null) {
-          const card = $('.card.active-plan')
-          const on = card && card.querySelector('.rung.on')
-          if (on) { on.classList.remove('flash'); void on.offsetWidth; on.classList.add('flash') }
+        const latest = state.events[0] ? eventUnits(state.events[0]) : null
+        if (latest !== null && latest !== state.flashPrevUnits && state.flashPrevUnits !== null) {
+          const row = $(`.card.active-plan .rung[data-price="${latest}"]`)
+          if (row) { row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash') }
         }
-        state.watchPrevUnits = units
+        state.flashPrevUnits = latest
       }
 
       function renderActivity() {
         const rows = state.events.length
           ? state.events
               .map((e) => {
+                const off = eventDiscountPct(e)
+                const badge = off > 0 ? `<span class="badge">−${off}%</span>` : ''
                 const note = (e.breakdown || []).map((b) => b.note).filter((n) => n !== 'base').join(' · ') || 'base'
                 return (
-                  `<tr><td class="data">${new Date(e.ts).toLocaleTimeString([], { hour12: false })}</td>` +
-                  `<td class="data">${esc(shortAddr(e.source))}</td>` +
+                  `<tr class="${off > 0 ? 'discounted' : ''}"><td class="data">${new Date(e.ts).toLocaleTimeString([], { hour12: false })}</td>` +
+                  `<td><button class="addr-link" data-addr="${esc(e.source || '')}">${esc(shortAddr(e.source))}</button></td>` +
                   `<td class="data">${esc(e.resource)}</td>` +
-                  `<td class="data">${fmtUsd(Math.round(e.amount * 1e6))}</td>` +
+                  `<td class="data">${fmtUsd(eventUnits(e))}${badge}</td>` +
                   `<td>${esc(note)}</td></tr>`
                 )
               })
               .join('')
           : `<tr><td colspan="5" class="empty">No settled charges yet.</td></tr>`
         $('#main').innerHTML =
-          `<div class="head"><div><h1>Activity</h1><div class="sub">Settled charges, newest first — each backed by a real on-chain transfer.</div></div></div>` +
+          `<div class="head"><div><h1>Activity</h1><div class="sub">Settled charges, newest first — each backed by a real on-chain transfer. Select a caller to view the customer.</div></div></div>` +
           `<div class="card" style="padding:6px 10px"><table><thead><tr><th>time</th><th>caller</th><th>resource</th><th>paid</th><th>why</th></tr></thead><tbody>${rows}</tbody></table></div>`
+        document.querySelectorAll('.addr-link[data-addr]').forEach((b) => {
+          if (b.dataset.addr) b.onclick = () => openCustomer(b.dataset.addr)
+        })
+      }
+
+      // ---- aggregate stats from the settlement feed ----
+      function computeStats() {
+        const ev = state.events
+        let revenue = 0, rewarded = 0
+        const byAddr = new Map()
+        for (const e of ev) {
+          revenue += e.amount
+          const base = eventBase(e)
+          if (e.amount < base) rewarded += base - e.amount
+          if (!e.source) continue
+          let m = byAddr.get(e.source)
+          if (!m) { m = { addr: e.source, calls: 0, paid: 0, rewarded: 0, firstTs: e.ts, lastAmount: e.amount }; byAddr.set(e.source, m) } // first sighting = newest (events are newest-first)
+          m.calls++; m.paid += e.amount
+          if (e.amount < base) m.rewarded += base - e.amount
+          m.firstTs = Math.min(m.firstTs, e.ts)
+        }
+        const customers = [...byAddr.values()].sort((a, b) => b.calls - a.calls)
+        const count = ev.length
+        return { revenue, count, avg: count ? revenue / count : 0, rewarded, customers, top: customers[0] || null }
+      }
+
+      function renderDashboard() {
+        const s = computeStats()
+        const card = (label, value, note) =>
+          `<div class="stat"><div class="label">${label}</div><div class="value">${value}</div>${note ? `<div class="note">${note}</div>` : ''}</div>`
+        $('#main').innerHTML =
+          `<div class="head"><div><h1>Dashboard</h1><div class="sub">Operational overview across all settled charges this session.</div></div></div>` +
+          `<div class="stats">` +
+          card('Total revenue', usdD(s.revenue)) +
+          card('Settled calls', String(s.count)) +
+          card('Avg price', usdD(s.avg)) +
+          card('Loyalty rewarded', usdD(s.rewarded), 'discount given to returning callers') +
+          card('Customers', String(s.customers.length), 'distinct paying wallets') +
+          card('Top customer', s.top ? shortAddr(s.top.addr) : '—', s.top ? `${s.top.calls} calls · ${usdD(s.top.paid)} paid` : 'no activity yet') +
+          `</div>`
+      }
+
+      function renderCustomers() {
+        const s = computeStats()
+        const rows = s.customers.length
+          ? s.customers
+              .map(
+                (c) =>
+                  `<tr><td><button class="addr-link" data-addr="${esc(c.addr)}">${esc(shortAddr(c.addr))}</button></td>` +
+                  `<td class="data">${c.calls}</td><td class="data">${usdD(c.paid)}</td><td class="data">${usdD(c.rewarded)}</td>` +
+                  `<td class="data">${fmtUsd(Math.round(c.lastAmount * 1e6))}</td></tr>`,
+              )
+              .join('')
+          : `<tr><td colspan="5" class="empty">No customers yet. Settled charges appear here by wallet.</td></tr>`
+        $('#main').innerHTML =
+          `<div class="head"><div><h1>Customers</h1><div class="sub">Wallets that have settled at least one charge. Select one to open its profile.</div></div></div>` +
+          `<div class="card" style="padding:6px 10px"><table><thead><tr><th>wallet</th><th>calls</th><th>total paid</th><th>rewarded</th><th>last price</th></tr></thead><tbody>${rows}</tbody></table></div>`
+        document.querySelectorAll('.addr-link[data-addr]').forEach((b) => { b.onclick = () => openCustomer(b.dataset.addr) })
+      }
+
+      // Stable illustrative profile derived from the address (clearly dummy descriptive data).
+      function fakeAgent(addr) {
+        const ADJ = ['Autonomous', 'Scheduled', 'Headless', 'Background', 'Managed', 'Resident']
+        const ROLE = ['procurement agent', 'data fetcher', 'pricing scout', 'research worker', 'ETL pipeline', 'market crawler']
+        const OPS = ['Northwind Labs', 'Meridian AI', 'Halcyon Systems', 'Vector Robotics', 'Cobalt Data Co.']
+        let h = 0
+        for (let i = 0; i < addr.length; i++) h = (h * 31 + addr.charCodeAt(i)) >>> 0
+        return { label: `${ADJ[h % ADJ.length]} ${ROLE[(h >> 3) % ROLE.length]}`, operator: OPS[(h >> 6) % OPS.length] }
+      }
+
+      function openCustomer(addr) {
+        state.currentCustomer = addr
+        state.view = 'customer'
+        setNav('customers')
+        renderCustomer()
+      }
+
+      function renderCustomer() {
+        const addr = state.currentCustomer
+        const mine = state.events.filter((e) => e.source === addr)
+        const calls = mine.length
+        const paid = mine.reduce((s, e) => s + e.amount, 0)
+        const rewarded = mine.reduce((s, e) => s + Math.max(0, eventBase(e) - e.amount), 0)
+        const latest = mine[0] // newest-first
+        const tierLabel = latest
+          ? (eventDiscountPct(latest) > 0 ? `tier price · −${eventDiscountPct(latest)}%` : 'base price')
+          : '—'
+        const firstTs = mine.length ? Math.min(...mine.map((e) => e.ts)) : null
+        const agent = fakeAgent(addr || '')
+        $('#main').innerHTML =
+          `<button class="back" id="back">← Customers</button>` +
+          `<div class="head"><div><h1>${esc(agent.label)}</h1><div class="sub data">${esc(addr)}</div></div></div>` +
+          `<div class="card"><div class="meta">profile</div><dl class="kv">` +
+          `<dt>operator</dt><dd>${esc(agent.operator)}</dd>` +
+          `<dt>type</dt><dd>autonomous agent</dd>` +
+          `<dt>status</dt><dd>active</dd>` +
+          `<dt>first seen</dt><dd>${firstTs ? new Date(firstTs).toLocaleString() : '—'}</dd>` +
+          `<dt>wallet</dt><dd>${esc(addr)}</dd>` +
+          `</dl><div class="note" style="color:var(--secondary);font-size:12px;margin-top:10px">Profile fields are illustrative; pricing figures below are live from settled charges.</div></div>` +
+          `<div class="card"><div class="meta">pricing</div><dl class="kv">` +
+          `<dt>settled calls</dt><dd>${calls}</dd>` +
+          `<dt>total paid</dt><dd>${usdD(paid)}</dd>` +
+          `<dt>loyalty rewarded</dt><dd>${usdD(rewarded)}</dd>` +
+          `<dt>current price</dt><dd>${latest ? fmtUsd(eventUnits(latest)) + ' · ' + tierLabel : '—'}</dd>` +
+          `</dl></div>`
+        $('#back').onclick = () => { state.view = 'customers'; renderCustomers() }
       }
 
       // ---- create-plan flow ----
@@ -391,12 +515,12 @@
       function setNav(view) {
         document.querySelectorAll('.navitem').forEach((b) => b.classList.toggle('active', b.dataset.view === view))
       }
+      const RENDER = { plans: renderPlans, dashboard: renderDashboard, activity: renderActivity, customers: renderCustomers }
       document.querySelectorAll('.navitem').forEach((b) => {
         b.onclick = () => {
           state.view = b.dataset.view
           setNav(b.dataset.view)
-          if (state.view === 'plans') renderPlans()
-          else renderActivity()
+          ;(RENDER[state.view] || renderPlans)()
         }
       })
 
