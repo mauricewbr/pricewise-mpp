@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pricewise</title>
+    <style>
+      :root {
+        --paper: #fbfbf9;
+        --ink: #1a1c1f;
+        --secondary: #5c6068;
+        --ui: Inter, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--ui);
+        -webkit-font-smoothing: antialiased;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 24px;
+      }
+      .stage { text-align: center; }
+      .brand {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: clamp(14px, 2.4vw, 26px);
+      }
+      .brand .logo { display: block; flex: none; width: clamp(40px, 7vw, 64px); height: auto; }
+      .name {
+        font-weight: 600;
+        letter-spacing: -0.03em;
+        font-size: clamp(44px, 9vw, 84px);
+        line-height: 1;
+      }
+      .tagline {
+        margin-top: clamp(14px, 2.2vw, 24px);
+        color: var(--secondary);
+        font-weight: 400;
+        letter-spacing: 0.01em;
+        font-size: clamp(16px, 2.4vw, 24px);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="brand">
+        <svg class="logo" viewBox="0 0 20 20" fill="none" role="img" aria-label="Pricewise">
+          <rect x="2.5" y="3.8" width="15" height="3" rx="1.5" fill="var(--ink)" />
+          <rect x="2.5" y="8.5" width="10.5" height="3" rx="1.5" fill="var(--ink)" />
+          <rect x="2.5" y="13.2" width="6" height="3" rx="1.5" fill="var(--ink)" />
+        </svg>
+        <span class="name">Pricewise</span>
+      </div>
+      <div class="tagline">Identity-based Dynamic Pricing on MPP</div>
+    </div>
+  </body>
+</html>

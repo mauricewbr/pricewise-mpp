@@ -84,12 +84,17 @@ const consoleHtml = readFileSync(
   fileURLToPath(new URL('../public/console.html', import.meta.url)),
   'utf8',
 )
+const titleHtml = readFileSync(
+  fileURLToPath(new URL('../public/title.html', import.meta.url)),
+  'utf8',
+)
 
 const app = new Hono<{ Variables: Variables }>()
 
 // --- Pages (free, unpaid — never wrap these in mppx.charge) ---
 app.get('/', (c) => c.html(dashboardHtml))
 app.get('/console', (c) => c.html(consoleHtml))
+app.get('/title', (c) => c.html(titleHtml))
 app.get('/api/events', (c) => c.json({ events: store.recentEvents() }))
 app.get('/api/stats', (c) => c.json(store.stats()))
 
