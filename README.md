@@ -52,7 +52,7 @@ npm run agent -- --account regular --discover
 
 # Stage 2: create/activate a plan in /console, then run a fresh agent against it
 npm run seed -- --account regular 0
-npm run live -- --repeat 6
+npm run live -- --account regular --repeat 6
 
 # Free price quote (no payment)
 npm run agent -- --account regular --quote
