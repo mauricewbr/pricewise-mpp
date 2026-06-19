@@ -6,12 +6,13 @@ import { serve } from '@hono/node-server'
 import { Mppx, tempo } from 'mppx/hono'
 import { Credential, Challenge } from 'mppx'
 import { priceFor } from './pricing/engine'
-import { loyalty, BASE_PRICE } from './pricing/rules'
+import { loyalty } from './pricing/rules'
+import { getActivePlan, setActivePlan, listPlans, validatePlan } from './pricing/plan'
 import { store } from './store'
 import { toAddress } from './identity'
 import { MODERATO_CHAIN_ID } from './chain'
 import { resolveAccount } from 'mppx/cli'
-import { buildOpenApiDoc, PROSE, LLMS_TXT } from './discovery'
+import { buildOpenApiDoc, prose, llmsTxt } from './discovery'
 
 // NOTE — adapted from the original spec snippet to match the shipped mppx@0.7.0 API:
 // `mppx/hono`'s `mppx.charge(opts)` returns a Hono *MiddlewareHandler*, not a
@@ -84,14 +85,32 @@ app.get('/api/events', (c) => c.json({ events: store.recentEvents() }))
 app.get('/api/stats', (c) => c.json(store.stats()))
 
 // --- Discovery (free, unpaid) ---
-// Built once from a BASE-price charge handler so offers[] advertise the worst-case
-// price (the discount lives only in x-loyalty and the live 402, never in offers[]).
-const openApiDoc = buildOpenApiDoc(mppx, mppx.charge({ amount: String(BASE_PRICE), description: PROSE }))
+// Rebuilt PER REQUEST from the current active plan so an operator edit is reflected on
+// the very next GET with no restart. offers[] advertise the plan's base price as the
+// worst case; the discount lives only in x-loyalty/x-identity-pricing and the live 402.
+// no-store so a client/intermediary can't serve stale pricing terms after an edit.
 app.get('/openapi.json', (c) => {
-  c.header('Cache-Control', 'public, max-age=60')
-  return c.json(openApiDoc)
+  const plan = getActivePlan()
+  const doc = buildOpenApiDoc(
+    mppx,
+    mppx.charge({ amount: String(plan.basePrice / 1e6), description: prose(plan) }),
+  )
+  c.header('Cache-Control', 'no-store')
+  return c.json(doc)
 })
-app.get('/llms.txt', (c) => c.text(LLMS_TXT))
+app.get('/llms.txt', (c) => c.text(llmsTxt()))
+
+// --- Pricing plan (free, unpaid; for the console to read/write later) ---
+app.get('/api/plan', (c) => c.json(getActivePlan()))
+app.get('/api/plans', (c) => c.json({ plans: listPlans() }))
+app.post('/api/plan', async (c) => {
+  const body = await c.req.json().catch(() => null)
+  const result = validatePlan(body)
+  if (!result.ok) return c.json({ error: result.error }, 400)
+  setActivePlan(result.plan)
+  console.log(`[plan] active plan set: ${result.plan.name} (base ${result.plan.basePrice}, ${result.plan.tiers.length} tiers)`)
+  return c.json(result.plan)
+})
 
 // --- Admin seed (DEV/DEMO ONLY, gated) ---
 // Sets a wallet's starting settled-purchase count so a live threshold crossing can
@@ -141,11 +160,12 @@ function boundMeta(challenge: { opaque?: string; meta?: Record<string, string> }
 
 /** Breakdown for a discounted price, derived from the bound base-unit amount. */
 function discountBreakdown(boundPrice: string): { amount: number; note: string }[] {
+  const planBase = getActivePlan().basePrice / 1e6
   const dollars = Number(boundPrice) / 1e6
-  const pct = Math.round((1 - dollars / BASE_PRICE) * 100)
+  const pct = Math.round((1 - dollars / planBase) * 100)
   return [
-    { amount: BASE_PRICE, note: 'base' },
-    { amount: dollars, note: `loyalty: tier ${Math.round(pct / 5)} −${pct}% (identity-verified)` },
+    { amount: planBase, note: 'base' },
+    { amount: dollars, note: `loyalty: −${pct}% (identity-verified)` },
   ]
 }
 
@@ -167,6 +187,7 @@ app.get(
     const hintAddr = toAddress(c.req.header('X-Agent'))
     console.log('[req] X-Agent =', hintAddr)
     const resource = c.req.param('resource')
+    const planBase = getActivePlan().basePrice / 1e6 // current active plan's base price
 
     let amount: number
     let breakdown: { amount: number; note: string }[]
@@ -183,10 +204,10 @@ app.get(
         recentRequests: store.recentRequestCount(),
         history: store.history(hintAddr),
       }
-      const quoted = priceFor(ctx, BASE_PRICE, [loyalty])
+      const quoted = priceFor(ctx, planBase, [loyalty])
       amount = quoted.amount
       breakdown = quoted.breakdown
-      if (hintAddr && amount < BASE_PRICE) {
+      if (hintAddr && amount < planBase) {
         meta = { src: hintAddr, price: toUnits(amount) }
         boundDiscount = true
       }
@@ -211,16 +232,16 @@ app.get(
             '[identity-pricing] discount denied:',
             replay ? `challenge ${cred.challenge.id.slice(0, 10)}… replayed` : `bound ${boundSrc} != payer ${paidSrc}`,
           )
-          amount = BASE_PRICE
+          amount = planBase
           breakdown = [
-            { amount: BASE_PRICE, note: 'base' },
-            { amount: BASE_PRICE, note: replay ? 'loyalty: challenge already used → base' : 'loyalty: identity not verified → base' },
+            { amount: planBase, note: 'base' },
+            { amount: planBase, note: replay ? 'loyalty: challenge already used → base' : 'loyalty: identity not verified → base' },
           ]
         }
       } else {
         // Unbound (base-price) challenge being paid — honor base.
-        amount = BASE_PRICE
-        breakdown = [{ amount: BASE_PRICE, note: 'base' }]
+        amount = planBase
+        breakdown = [{ amount: planBase, note: 'base' }]
       }
     }
 
