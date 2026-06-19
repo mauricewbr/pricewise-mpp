@@ -302,18 +302,19 @@
         })
         return { ok: Object.keys(errors).length === 0, errors, body: { name: d.name || 'Custom plan', basePrice: base, tiers } }
       }
+      // Build the form STRUCTURE once (only on open / add / remove tier). Keystrokes
+      // update validation in place via refreshValidation() — never rebuild the inputs,
+      // or the focused field would be replaced and lose focus after one character.
       function renderCreate() {
         const d = state.draft
-        const v = validateDraft(d)
-        const baseUnits = Math.round(Number(d.base) * 1e6) || 0
         const tierRows = d.tiers
           .map(
             (t, i) =>
               `<div class="tier-row">` +
-              `<div><label>tier ${i + 1} · threshold (calls)</label><input type="number" min="1" step="1" data-t="${i}" data-k="threshold" value="${esc(t.threshold)}" /></div>` +
-              `<div><label>discounted price ($)</label><input type="number" min="0" step="0.001" data-t="${i}" data-k="price" value="${esc(t.price)}" /></div>` +
+              `<div><label>tier ${i + 1} · threshold (calls)</label><input type="number" min="1" step="1" inputmode="numeric" data-t="${i}" data-k="threshold" value="${esc(t.threshold)}" /></div>` +
+              `<div><label>discounted price ($)</label><input type="number" min="0" step="0.001" inputmode="decimal" data-t="${i}" data-k="price" value="${esc(t.price)}" /></div>` +
               `<button class="btn ghost" data-rm="${i}" aria-label="Remove tier ${i + 1}">Remove</button>` +
-              `<div class="err" style="grid-column:1/-1">${v.errors['t' + i] ? esc(v.errors['t' + i]) : ''}</div>` +
+              `<div class="err" id="err-t${i}" style="grid-column:1/-1"></div>` +
               `</div>`,
           )
           .join('')
@@ -322,22 +323,22 @@
           `<button class="btn" id="cancel">Cancel</button></div>` +
           `<div class="card" style="max-width:560px">` +
           `<div class="field"><label>plan name</label><input type="text" id="f-name" value="${esc(d.name)}" placeholder="e.g. Launch promo" style="font-family:var(--ui)" /></div>` +
-          `<div class="field"><label>base price ($ per call)</label><input type="number" id="f-base" min="0" step="0.001" value="${esc(d.base)}" />` +
-          `<div class="echo">= ${baseUnits} base units${' · worst-case price advertised in offers[]'}</div>` +
-          `<div class="err">${v.errors.base ? esc(v.errors.base) : ''}</div></div>` +
+          `<div class="field"><label>base price ($ per call)</label><input type="number" id="f-base" min="0" step="0.001" inputmode="decimal" value="${esc(d.base)}" />` +
+          `<div class="echo" id="base-echo"></div>` +
+          `<div class="err" id="err-base"></div></div>` +
           `<div class="meta">tiers · higher threshold ⇒ lower price</div>${tierRows}` +
           `<button class="btn" id="addtier" style="margin-top:4px">Add tier</button>` +
-          `<div class="formfoot"><button class="btn primary" id="save" ${v.ok ? '' : 'disabled'}>Save plan</button>` +
-          `<span class="hint" id="savehint">${v.ok ? 'Saving sets this as the active plan.' : 'Fix the highlighted fields to save.'}</span></div>` +
+          `<div class="formfoot"><button class="btn primary" id="save">Save plan</button>` +
+          `<span class="hint" id="savehint"></span></div>` +
           `<div class="err" id="servererr"></div></div>`
-        // wire inputs
+        // wire inputs — update state + validation only, no structural rebuild
         $('#f-name').oninput = (e) => { d.name = e.target.value }
-        $('#f-base').oninput = (e) => { d.base = e.target.value; renderCreate() }
+        $('#f-base').oninput = (e) => { d.base = e.target.value; refreshValidation() }
         document.querySelectorAll('input[data-t]').forEach((inp) => {
           inp.oninput = (e) => {
             const i = +e.target.dataset.t, k = e.target.dataset.k
             d.tiers[i][k] = e.target.value
-            renderCreate()
+            refreshValidation()
           }
         })
         document.querySelectorAll('[data-rm]').forEach((b) => {
@@ -345,9 +346,29 @@
         })
         $('#addtier').onclick = () => { d.tiers.push({ threshold: '', price: '' }); renderCreate() }
         $('#cancel').onclick = () => { state.view = 'plans'; renderPlans() }
-        $('#save').onclick = () => save(v.body)
+        refreshValidation()
       }
-      async function save(body) {
+
+      // Update echo / inline errors / save state in place — does NOT touch the inputs.
+      function refreshValidation() {
+        const d = state.draft
+        const v = validateDraft(d)
+        const baseUnits = Math.round(Number(d.base) * 1e6) || 0
+        const echo = $('#base-echo')
+        if (echo) echo.textContent = `= ${baseUnits} base units · worst-case price advertised in offers[]`
+        const eb = $('#err-base')
+        if (eb) eb.textContent = v.errors.base || ''
+        d.tiers.forEach((_, i) => {
+          const el = $('#err-t' + i)
+          if (el) el.textContent = v.errors['t' + i] || ''
+        })
+        const save = $('#save')
+        if (save) { save.disabled = !v.ok; save.onclick = () => submitPlan(v.body) }
+        const hint = $('#savehint')
+        if (hint) hint.textContent = v.ok ? 'Saving sets this as the active plan.' : 'Fix the highlighted fields to save.'
+      }
+
+      async function submitPlan(body) {
         try {
           const r = await fetch('/api/plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
           if (!r.ok) { const j = await r.json().catch(() => ({})); $('#servererr').textContent = j.error || `Save failed (${r.status}).`; return }
