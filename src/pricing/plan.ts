@@ -23,7 +23,7 @@ export interface PricingPlan {
 
 export const DEFAULT_PLAN: PricingPlan = {
   id: 'default',
-  name: 'Default',
+  name: 'Loyalty Program 1',
   active: true,
   basePrice: 100000,
   tiers: [
