@@ -18,12 +18,26 @@ MPP says *what a resource costs*, but not *what it costs for this specific calle
 
 ## Run it
 
-Requirements: Node, an `mppx` keychain with funded Moderato testnet accounts, an `ANTHROPIC_API_KEY` (for the live agent). Copy `.env.example` → `.env` and fill it in. Keys live in the OS keychain (resolved by `--account <name>`), not in `.env`.
+Requirements: Node, the `mppx` CLI, and an `ANTHROPIC_API_KEY` (for the live agent). Keys live in the OS keychain (resolved by `--account <name>`), never in `.env`.
+
+The account names below aren't magic — the commands just pass them via `--account` — but they must exist in your keychain, so on a fresh setup create them with these exact names:
 
 ```bash
 npm install
+cp .env.example .env
+
+# Create + fund the demo accounts (Moderato testnet):
+npx mppx account create --account regular  && npx mppx account fund --account regular  --network testnet   # returning caller
+npx mppx account create --account newagent && npx mppx account fund --account newagent --network testnet   # new caller
+npx mppx account create --account main     && npx mppx account fund --account main     --network testnet   # seller / recipient
+
+# In .env: set MPP_SECRET_KEY (any stable value) and RECIPIENT_ADDRESS to the seller wallet:
+npx mppx account view --account main        # paste this address as RECIPIENT_ADDRESS
+
 npm run dev                 # server + console at http://localhost:3000/console
 ```
+
+> The demo also boot-seeds `regular` to a tier-3 history (`PRICEWISE_SEED_ACCOUNT=regular` in `.env`). If you use different account names, update the `--account` flags, `PRICEWISE_SEED_ACCOUNT`, and `RECIPIENT_ADDRESS` to match.
 
 Demo commands:
 ```bash
