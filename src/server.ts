@@ -71,16 +71,21 @@ if (seedAccount) {
 // A few pre-settled demo rows so the dashboard is never empty on stage.
 store.seedDemoEvents()
 
-// Dashboard page, read once at boot. Inlined/self-contained — no CDN or build step.
+// Static pages, read once at boot. Inlined/self-contained — no CDN or build step.
 const dashboardHtml = readFileSync(
   fileURLToPath(new URL('../public/index.html', import.meta.url)),
+  'utf8',
+)
+const consoleHtml = readFileSync(
+  fileURLToPath(new URL('../public/console.html', import.meta.url)),
   'utf8',
 )
 
 const app = new Hono<{ Variables: Variables }>()
 
-// --- Dashboard (free, unpaid — never wrap these in mppx.charge) ---
+// --- Pages (free, unpaid — never wrap these in mppx.charge) ---
 app.get('/', (c) => c.html(dashboardHtml))
+app.get('/console', (c) => c.html(consoleHtml))
 app.get('/api/events', (c) => c.json({ events: store.recentEvents() }))
 app.get('/api/stats', (c) => c.json(store.stats()))
 

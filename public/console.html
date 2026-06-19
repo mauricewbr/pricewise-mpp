@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pricewise · console</title>
+    <style>
+      :root {
+        --paper: #fbfbf9;
+        --surface: #ffffff;
+        --ink: #1a1c1f;
+        --secondary: #5c6068;
+        --hairline: #e4e6e9;
+        --accent: #0b1f8f;
+        --accent-press: #081573;
+        --green: #1f7a4d;
+        --error: #a8322d;
+        --ui: Inter, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
+        --mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 14px/1.5 var(--ui);
+        -webkit-font-smoothing: antialiased;
+      }
+      /* layout */
+      .app { display: grid; grid-template-columns: 224px 1fr; min-height: 100vh; }
+      nav.side {
+        background: var(--surface);
+        border-right: 1px solid var(--hairline);
+        padding: 20px 14px;
+        display: flex; flex-direction: column; gap: 4px;
+      }
+      .wordmark { font-weight: 600; letter-spacing: -0.01em; font-size: 15px; padding: 4px 10px 18px; }
+      .navitem {
+        display: block; width: 100%; text-align: left; cursor: pointer;
+        background: none; border: 0; font: inherit; color: var(--secondary);
+        padding: 7px 10px; border-radius: 6px; border-left: 2px solid transparent;
+      }
+      .navitem:hover { color: var(--ink); background: #f4f5f6; }
+      .navitem.active { color: var(--accent); font-weight: 600; border-left-color: var(--accent); }
+      .navitem:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+      main { padding: 28px 32px 60px; max-width: 920px; }
+      .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+      h1 { font-size: 19px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+      .sub { color: var(--secondary); font-size: 13px; margin-top: 3px; }
+      /* buttons */
+      .btn {
+        font: inherit; cursor: pointer; border-radius: 7px; padding: 8px 14px;
+        border: 1px solid var(--hairline); background: var(--surface); color: var(--ink);
+      }
+      .btn:hover { border-color: #cfd2d6; }
+      .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+      .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .btn.primary:hover { background: var(--accent-press); border-color: var(--accent-press); }
+      .btn.primary:disabled { background: #c2c6df; border-color: #c2c6df; cursor: not-allowed; }
+      .btn.ghost { border-color: transparent; color: var(--secondary); padding: 6px 8px; }
+      .btn.ghost:hover { color: var(--error); background: none; border-color: transparent; }
+      /* cards */
+      .card {
+        background: var(--surface); border: 1px solid var(--hairline);
+        border-radius: 10px; padding: 18px 20px; margin-bottom: 14px;
+      }
+      .card.active-plan { border-color: #c9cfe8; }
+      .card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .plan-name { font-weight: 600; font-size: 15px; }
+      .pill {
+        font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+        border: 1px solid var(--hairline); color: var(--secondary); text-transform: lowercase;
+      }
+      .pill.active { color: var(--accent); border-color: #c9cfe8; background: #f3f5fd; }
+      .meta { color: var(--secondary); font-size: 12px; margin: 10px 0 2px; }
+      .data { font-family: var(--mono); }
+      .base-price { font-family: var(--mono); font-size: 14px; }
+      /* tier ladder — the signature */
+      .ladder { margin-top: 10px; border-top: 1px solid var(--hairline); }
+      .rung {
+        display: grid; grid-template-columns: 16px 1fr auto; align-items: baseline; gap: 10px;
+        font-family: var(--mono); font-size: 13px; padding: 6px 2px;
+        border-bottom: 1px solid var(--hairline);
+      }
+      .rung .marker { color: var(--accent); font-weight: 700; visibility: hidden; }
+      .rung.on .marker { visibility: visible; }
+      .rung.on { color: var(--accent); }
+      .rung .thr { color: var(--secondary); }
+      .rung.on .thr { color: var(--accent); }
+      .rung .price { text-align: right; }
+      .rung.discounted .price { color: var(--green); }
+      .rung.on.discounted .price { color: var(--accent); }
+      @keyframes flashrow { from { background: #eef1fb; } to { background: transparent; } }
+      .rung.flash { animation: flashrow 600ms ease-out; }
+      @media (prefers-reduced-motion: reduce) { .rung.flash { animation: none; } }
+      /* live watcher banner */
+      .watch {
+        display: flex; align-items: center; gap: 8px; margin: 14px 0 18px;
+        font-size: 12px; color: var(--secondary);
+      }
+      .watch .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+      .watch .who { font-family: var(--mono); color: var(--ink); }
+      .watch .pay { font-family: var(--mono); color: var(--ink); font-weight: 600; }
+      /* form */
+      .field { margin-bottom: 16px; }
+      label { display: block; font-size: 12px; color: var(--secondary); margin-bottom: 5px; }
+      input[type="text"], input[type="number"] {
+        font: inherit; font-family: var(--mono); padding: 8px 10px; width: 100%;
+        border: 1px solid var(--hairline); border-radius: 7px; background: var(--surface); color: var(--ink);
+      }
+      input:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+      .tier-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 8px; }
+      .err { color: var(--error); font-size: 12px; margin-top: 6px; min-height: 16px; }
+      .hint { color: var(--secondary); font-size: 12px; }
+      .empty { color: var(--secondary); padding: 28px 4px; }
+      .formfoot { display: flex; align-items: center; gap: 14px; margin-top: 22px; }
+      .echo { font-family: var(--mono); color: var(--secondary); font-size: 12px; }
+      /* activity */
+      table { width: 100%; border-collapse: collapse; }
+      th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--hairline); font-size: 13px; }
+      th { color: var(--secondary); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+      td.data, td .data { font-family: var(--mono); }
+      @media (max-width: 720px) { .app { grid-template-columns: 1fr; } nav.side { flex-direction: row; flex-wrap: wrap; } }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <nav class="side">
+        <div class="wordmark">Pricewise</div>
+        <button class="navitem active" data-view="plans">Plans</button>
+        <button class="navitem" data-view="activity">Activity</button>
+      </nav>
+      <main id="main"><!-- rendered --></main>
+    </div>
+
+    <script>
+      const $ = (sel, el = document) => el.querySelector(sel)
+      const fmtUsd = (units) => {
+        // units are integer base units (6 decimals)
+        let s = (units / 1e6).toFixed(6).replace(/0+$/, '')
+        if (s.endsWith('.')) s = s.slice(0, -1)
+        const dot = s.indexOf('.')
+        if (dot === -1) s += '.00'
+        else { const d = s.length - dot - 1; if (d < 2) s += '0'.repeat(2 - d) }
+        return '$' + s
+      }
+      const shortAddr = (a) => (a && a.length > 12 ? a.slice(0, 6) + '…' + a.slice(-4) : a || 'anon')
+      const pct = (base, price) => Math.round((1 - price / base) * 100)
+      const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+
+      const state = {
+        view: 'plans',
+        plans: [],
+        activeId: null,
+        active: null,
+        events: [],
+        watchPrevUnits: null, // base-unit price the watched identity last showed (for flash)
+        draft: null,
+      }
+
+      // ---- data ----
+      async function getJSON(url) {
+        const r = await fetch(url, { cache: 'no-store' })
+        if (!r.ok) throw new Error(`${url} → ${r.status}`)
+        return r.json()
+      }
+      async function refresh() {
+        const [plans, active, events] = await Promise.all([
+          getJSON('/api/plans').then((d) => d.plans).catch(() => state.plans),
+          getJSON('/api/plan').catch(() => state.active),
+          getJSON('/api/events').then((d) => d.events).catch(() => state.events),
+        ])
+        state.plans = plans || []
+        state.active = active || null
+        state.activeId = active ? active.id : null
+        state.events = events || []
+        if (state.view === 'plans') renderPlans()
+        else if (state.view === 'activity') renderActivity()
+      }
+
+      // The identity to track for the live ladder: the most recent settled charge.
+      function watched() {
+        const e = state.events[0]
+        if (!e) return null
+        return { addr: e.source, units: Math.round(e.amount * 1e6) }
+      }
+
+      // ---- ladder (the signature element) ----
+      // rows: base + each tier; mark the row matching the watched identity's last price.
+      function ladderHtml(plan, live) {
+        const w = live ? watched() : null
+        const rows = []
+        const baseOn = w && w.units === plan.basePrice
+        rows.push(rung('base', '—', plan.basePrice, plan.basePrice, baseOn, false))
+        for (const t of plan.tiers) {
+          const on = w && w.units === t.price
+          rows.push(rung(`tier`, t.threshold, t.price, plan.basePrice, on, true))
+        }
+        return `<div class="ladder" role="table" aria-label="Tier ladder">${rows.join('')}</div>`
+      }
+      function rung(kind, threshold, price, base, on, discounted) {
+        const thr = kind === 'base' ? 'base' : `≥ ${threshold} calls`
+        const off = discounted ? `  −${pct(base, price)}%` : ''
+        return (
+          `<div class="rung${on ? ' on' : ''}${discounted ? ' discounted' : ''}" role="row">` +
+          `<span class="marker" aria-hidden="true">▸</span>` +
+          `<span class="thr">${esc(thr)}</span>` +
+          `<span class="price">${fmtUsd(price)}<span class="thr">${off}</span></span>` +
+          `</div>`
+        )
+      }
+
+      // ---- views ----
+      function renderPlans() {
+        const w = watched()
+        const watchBanner = w
+          ? `<div class="watch"><span class="dot"></span>live · watching <span class="who">${esc(shortAddr(w.addr))}</span> · currently paying <span class="pay">${fmtUsd(w.units)}</span></div>`
+          : ''
+        const cards = state.plans.length
+          ? state.plans
+              .map((p) => {
+                const isActive = p.id === state.activeId
+                return (
+                  `<div class="card${isActive ? ' active-plan' : ''}">` +
+                  `<div class="card-top"><span class="plan-name">${esc(p.name)}</span>` +
+                  `<span class="pill${isActive ? ' active' : ''}">${isActive ? 'active' : 'inactive'}</span></div>` +
+                  `<div class="meta">base price</div><div class="base-price">${fmtUsd(p.basePrice)} <span class="thr" style="color:var(--secondary)">(${p.basePrice} base units)</span></div>` +
+                  `<div class="meta">tier ladder</div>` +
+                  ladderHtml(p, isActive) +
+                  `</div>`
+                )
+              })
+              .join('')
+          : `<div class="empty">No plans yet. Create your first pricing plan.</div>`
+        $('#main').innerHTML =
+          `<div class="head"><div><h1>Plans</h1><div class="sub">Pricing plans for identity-conditional pricing. The active plan drives every live quote and settlement.</div></div>` +
+          `<button class="btn primary" id="newplan">New plan</button></div>` +
+          (state.activeId ? watchBanner : '') +
+          cards
+        $('#newplan').onclick = openCreate
+        applyFlash()
+      }
+
+      // Flash the active plan's matched rung when the watched price changes.
+      function applyFlash() {
+        const w = watched()
+        const units = w ? w.units : null
+        if (units !== state.watchPrevUnits && state.watchPrevUnits !== null) {
+          const card = $('.card.active-plan')
+          const on = card && card.querySelector('.rung.on')
+          if (on) { on.classList.remove('flash'); void on.offsetWidth; on.classList.add('flash') }
+        }
+        state.watchPrevUnits = units
+      }
+
+      function renderActivity() {
+        const rows = state.events.length
+          ? state.events
+              .map((e) => {
+                const note = (e.breakdown || []).map((b) => b.note).filter((n) => n !== 'base').join(' · ') || 'base'
+                return (
+                  `<tr><td class="data">${new Date(e.ts).toLocaleTimeString([], { hour12: false })}</td>` +
+                  `<td class="data">${esc(shortAddr(e.source))}</td>` +
+                  `<td class="data">${esc(e.resource)}</td>` +
+                  `<td class="data">${fmtUsd(Math.round(e.amount * 1e6))}</td>` +
+                  `<td>${esc(note)}</td></tr>`
+                )
+              })
+              .join('')
+          : `<tr><td colspan="5" class="empty">No settled charges yet.</td></tr>`
+        $('#main').innerHTML =
+          `<div class="head"><div><h1>Activity</h1><div class="sub">Settled charges, newest first — each backed by a real on-chain transfer.</div></div></div>` +
+          `<div class="card" style="padding:6px 10px"><table><thead><tr><th>time</th><th>caller</th><th>resource</th><th>paid</th><th>why</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      }
+
+      // ---- create-plan flow ----
+      function openCreate() {
+        state.draft = { name: '', base: '0.10', tiers: [{ threshold: '', price: '' }] }
+        state.view = 'create'
+        setNav('plans') // create lives under Plans
+        renderCreate()
+      }
+      function validateDraft(d) {
+        const errors = {}
+        const base = Math.round(Number(d.base) * 1e6)
+        if (!(Number(d.base) > 0) || !Number.isFinite(base) || base <= 0) errors.base = 'Base price must be greater than $0.'
+        const tiers = []
+        d.tiers.forEach((t, i) => {
+          const th = Number(t.threshold)
+          const pr = Math.round(Number(t.price) * 1e6)
+          if (t.threshold === '' && t.price === '') return // ignore a blank trailing row
+          if (!Number.isInteger(th) || th <= 0) { errors['t' + i] = `Tier ${i + 1} threshold must be a whole number of calls greater than zero.`; return }
+          if (!(Number(t.price) > 0) || pr <= 0) { errors['t' + i] = `Tier ${i + 1} price must be greater than $0.`; return }
+          if (!errors.base && pr > base) { errors['t' + i] = `Tier ${i + 1} price must not exceed the base price.`; return }
+          if (tiers.length) {
+            const prev = tiers[tiers.length - 1]
+            if (th <= prev.threshold) { errors['t' + i] = `Tier ${i + 1} threshold must be higher than tier ${tiers.length}'s threshold.`; return }
+            if (pr >= prev.price) { errors['t' + i] = `Tier ${i + 1} price must be lower than tier ${tiers.length}'s price.`; return }
+          }
+          tiers.push({ threshold: th, price: pr })
+        })
+        return { ok: Object.keys(errors).length === 0, errors, body: { name: d.name || 'Custom plan', basePrice: base, tiers } }
+      }
+      function renderCreate() {
+        const d = state.draft
+        const v = validateDraft(d)
+        const baseUnits = Math.round(Number(d.base) * 1e6) || 0
+        const tierRows = d.tiers
+          .map(
+            (t, i) =>
+              `<div class="tier-row">` +
+              `<div><label>tier ${i + 1} · threshold (calls)</label><input type="number" min="1" step="1" data-t="${i}" data-k="threshold" value="${esc(t.threshold)}" /></div>` +
+              `<div><label>discounted price ($)</label><input type="number" min="0" step="0.001" data-t="${i}" data-k="price" value="${esc(t.price)}" /></div>` +
+              `<button class="btn ghost" data-rm="${i}" aria-label="Remove tier ${i + 1}">Remove</button>` +
+              `<div class="err" style="grid-column:1/-1">${v.errors['t' + i] ? esc(v.errors['t' + i]) : ''}</div>` +
+              `</div>`,
+          )
+          .join('')
+        $('#main').innerHTML =
+          `<div class="head"><div><h1>New plan</h1><div class="sub">Numbers only — same mechanism (settled-purchase count), new schedule. Reflected live, no restart.</div></div>` +
+          `<button class="btn" id="cancel">Cancel</button></div>` +
+          `<div class="card" style="max-width:560px">` +
+          `<div class="field"><label>plan name</label><input type="text" id="f-name" value="${esc(d.name)}" placeholder="e.g. Launch promo" style="font-family:var(--ui)" /></div>` +
+          `<div class="field"><label>base price ($ per call)</label><input type="number" id="f-base" min="0" step="0.001" value="${esc(d.base)}" />` +
+          `<div class="echo">= ${baseUnits} base units${' · worst-case price advertised in offers[]'}</div>` +
+          `<div class="err">${v.errors.base ? esc(v.errors.base) : ''}</div></div>` +
+          `<div class="meta">tiers · higher threshold ⇒ lower price</div>${tierRows}` +
+          `<button class="btn" id="addtier" style="margin-top:4px">Add tier</button>` +
+          `<div class="formfoot"><button class="btn primary" id="save" ${v.ok ? '' : 'disabled'}>Save plan</button>` +
+          `<span class="hint" id="savehint">${v.ok ? 'Saving sets this as the active plan.' : 'Fix the highlighted fields to save.'}</span></div>` +
+          `<div class="err" id="servererr"></div></div>`
+        // wire inputs
+        $('#f-name').oninput = (e) => { d.name = e.target.value }
+        $('#f-base').oninput = (e) => { d.base = e.target.value; renderCreate() }
+        document.querySelectorAll('input[data-t]').forEach((inp) => {
+          inp.oninput = (e) => {
+            const i = +e.target.dataset.t, k = e.target.dataset.k
+            d.tiers[i][k] = e.target.value
+            renderCreate()
+          }
+        })
+        document.querySelectorAll('[data-rm]').forEach((b) => {
+          b.onclick = () => { d.tiers.splice(+b.dataset.rm, 1); if (!d.tiers.length) d.tiers.push({ threshold: '', price: '' }); renderCreate() }
+        })
+        $('#addtier').onclick = () => { d.tiers.push({ threshold: '', price: '' }); renderCreate() }
+        $('#cancel').onclick = () => { state.view = 'plans'; renderPlans() }
+        $('#save').onclick = () => save(v.body)
+      }
+      async function save(body) {
+        try {
+          const r = await fetch('/api/plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+          if (!r.ok) { const j = await r.json().catch(() => ({})); $('#servererr').textContent = j.error || `Save failed (${r.status}).`; return }
+          state.view = 'plans'
+          await refresh()
+        } catch (e) {
+          $('#servererr').textContent = 'Could not reach the server.'
+        }
+      }
+
+      // ---- nav ----
+      function setNav(view) {
+        document.querySelectorAll('.navitem').forEach((b) => b.classList.toggle('active', b.dataset.view === view))
+      }
+      document.querySelectorAll('.navitem').forEach((b) => {
+        b.onclick = () => {
+          state.view = b.dataset.view
+          setNav(b.dataset.view)
+          if (state.view === 'plans') renderPlans()
+          else renderActivity()
+        }
+      })
+
+      // ---- boot + poll ----
+      refresh()
+      setInterval(() => { refresh() }, 1500)
+    </script>
+  </body>
+</html>
