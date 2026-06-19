@@ -1,10 +1,10 @@
 import { resolveAccount } from 'mppx/cli'
-import { LOYALTY, BASE_PRICE, loyalty } from '../src/pricing/rules'
-import { priceFor } from '../src/pricing/engine'
+import { priceUnitsForCount, type PricingPlan } from '../src/pricing/plan'
 
 // Seed a keychain account's STARTING settled-purchase count so a live threshold crossing
 // can be demoed. The crossing itself must come from real settles (recordPurchase) — this
-// only sets the starting count. All tier/threshold numbers are derived from the loyalty rule.
+// only sets the starting count. Tier/threshold numbers are derived from the server's
+// CURRENT ACTIVE PLAN (fetched live), so seeding reflects whatever plan is active now.
 // Usage: npm run seed -- --account <name> <count>
 
 const args = process.argv.slice(2)
@@ -25,25 +25,21 @@ const address = await resolveAccount(name)
   })
 const baseUrl = process.env.SERVER_URL ?? 'http://localhost:3000'
 
-const toUnits = (d: number) => Math.round(d * 1e6)
-const priceAt = (purchases: number) =>
-  priceFor(
-    { resource: '', now: new Date(), recentRequests: 0, history: { purchases, totalSpend: 0 } },
-    BASE_PRICE,
-    [loyalty],
-  ).amount
-const tierAt = (purchases: number) => Math.min(LOYALTY.maxTier, Math.floor(purchases / LOYALTY.step))
-
-const tier = tierAt(n)
-const price = priceAt(n)
-let nextLine: string
-if (tier >= LOYALTY.maxTier) {
-  nextLine = `already at max tier ${LOYALTY.maxTier}`
-} else {
-  const nextTier = tier + 1
-  const need = nextTier * LOYALTY.step - n
-  nextLine = `${need} more settled purchase${need === 1 ? '' : 's'} → tier ${nextTier} (${toUnits(priceAt(nextTier * LOYALTY.step))})`
+// Pull the live active plan so the derived tier/next-threshold line matches the server.
+const plan = (await fetch(`${baseUrl}/api/plan`)
+  .then((r) => r.json())
+  .catch(() => null)) as PricingPlan | null
+if (!plan) {
+  console.error(`[seed] could not read the active plan from ${baseUrl}/api/plan — is the server running?`)
+  process.exit(1)
 }
+
+const tierIndex = (count: number) => plan.tiers.filter((t) => count >= t.threshold).length
+const nextTier = plan.tiers.find((t) => t.threshold > n)
+const priceNow = priceUnitsForCount(plan, n)
+const nextLine = nextTier
+  ? `${nextTier.threshold - n} more settled purchase${nextTier.threshold - n === 1 ? '' : 's'} → ${nextTier.price} base units`
+  : 'already at the deepest tier'
 
 const res = await fetch(`${baseUrl}/admin/seed`, {
   method: 'POST',
@@ -60,7 +56,5 @@ if (!res || !res.ok) {
 }
 
 console.log(`[seed] ${name} ${address}`)
-console.log(
-  `[seed] seeded at ${n} → tier ${tier} (${toUnits(price)} base units); ${nextLine}`,
-)
+console.log(`[seed] seeded at ${n} → tier ${tierIndex(n)} (${priceNow} base units); ${nextLine}`)
 console.log('[seed] starting count only — real settled purchases do the crossing.')
