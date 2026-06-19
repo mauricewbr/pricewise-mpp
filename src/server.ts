@@ -68,8 +68,12 @@ if (seedAccount) {
   }
 }
 
-// A few pre-settled demo rows so the dashboard is never empty on stage.
-store.seedDemoEvents()
+// Activity starts EMPTY by default — every row should be a real settled charge. Set
+// PRICEWISE_SEED_DEMO_EVENTS=1 to pre-fill a few illustrative rows (e.g. for a screenshot).
+if (process.env.PRICEWISE_SEED_DEMO_EVENTS === '1') {
+  store.seedDemoEvents()
+  console.log('[seed] demo activity rows loaded (PRICEWISE_SEED_DEMO_EVENTS=1)')
+}
 
 // Static pages, read once at boot. Inlined/self-contained — no CDN or build step.
 const dashboardHtml = readFileSync(
