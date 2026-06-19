@@ -10,7 +10,6 @@ import { loyalty } from './pricing/rules'
 import { getActivePlan, setActivePlan, activatePlanById, listPlans, validatePlan } from './pricing/plan'
 import { store } from './store'
 import { toAddress } from './identity'
-import { MODERATO_CHAIN_ID } from './chain'
 import { resolveAccount } from 'mppx/cli'
 import { buildOpenApiDoc, prose, llmsTxt } from './discovery'
 
@@ -147,7 +146,6 @@ if (process.env.PRICEWISE_ALLOW_SEED === '1') {
     console.log(`[admin] seeded ${addr} -> ${body.purchases} prior purchases`)
     return c.json({ ok: true, address: addr, purchases: body.purchases })
   })
-  console.log('[admin] seed endpoint enabled at POST /admin/seed (PRICEWISE_ALLOW_SEED=1)')
 }
 
 const toUnits = (dollars: number) => String(Math.round(dollars * 1e6))
@@ -286,12 +284,7 @@ app.get(
 )
 
 const port = Number(process.env.PORT ?? 3000)
-serve({ fetch: app.fetch, port }, (info) => {
-  console.log(
-    `Pricewise listening on http://localhost:${info.port} ` +
-      `(Tempo Moderato testnet, chain ${MODERATO_CHAIN_ID})`,
-  )
-})
+serve({ fetch: app.fetch, port })
 
 function generateDevSecret(): string {
   const key = randomBytes(32).toString('base64')
