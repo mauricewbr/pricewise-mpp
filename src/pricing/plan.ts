@@ -57,6 +57,14 @@ export function setActivePlan(plan: PricingPlan): void {
   }
 }
 
+/** Re-activate an existing plan (default or a session-created one) by id. */
+export function activatePlanById(id: string): PricingPlan | null {
+  const found = listPlans().find((p) => p.id === id)
+  if (!found) return null
+  setActivePlan(found)
+  return found
+}
+
 /**
  * Price (base units) for a settled-purchase count under a plan: the highest tier whose
  * threshold <= count, else the base price. Tiers are validated ascending, so the last

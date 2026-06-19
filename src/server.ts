@@ -7,7 +7,7 @@ import { Mppx, tempo } from 'mppx/hono'
 import { Credential, Challenge } from 'mppx'
 import { priceFor } from './pricing/engine'
 import { loyalty } from './pricing/rules'
-import { getActivePlan, setActivePlan, listPlans, validatePlan } from './pricing/plan'
+import { getActivePlan, setActivePlan, activatePlanById, listPlans, validatePlan } from './pricing/plan'
 import { store } from './store'
 import { toAddress } from './identity'
 import { MODERATO_CHAIN_ID } from './chain'
@@ -115,6 +115,12 @@ app.post('/api/plan', async (c) => {
   setActivePlan(result.plan)
   console.log(`[plan] active plan set: ${result.plan.name} (base ${result.plan.basePrice}, ${result.plan.tiers.length} tiers)`)
   return c.json(result.plan)
+})
+app.post('/api/plans/:id/activate', (c) => {
+  const plan = activatePlanById(c.req.param('id'))
+  if (!plan) return c.json({ error: 'No plan with that id.' }, 404)
+  console.log(`[plan] re-activated: ${plan.name} (${plan.id})`)
+  return c.json(plan)
 })
 
 // --- Admin seed (DEV/DEMO ONLY, gated) ---

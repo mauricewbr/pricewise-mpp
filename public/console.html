@@ -75,6 +75,8 @@
         border: 1px solid var(--hairline); color: var(--secondary); text-transform: lowercase;
       }
       .pill.active { color: var(--accent); border-color: #c9cfe8; background: #f3f5fd; }
+      .card-actions { display: flex; align-items: center; gap: 8px; }
+      .btn.activate { padding: 4px 11px; font-size: 12px; }
       .meta { color: var(--secondary); font-size: 12px; margin: 10px 0 2px; }
       .data { font-family: var(--mono); }
       .base-price { font-family: var(--mono); font-size: 14px; }
@@ -248,10 +250,13 @@
           ? state.plans
               .map((p) => {
                 const isActive = p.id === state.activeId
+                const right = isActive
+                  ? `<span class="pill active">active</span>`
+                  : `<span class="pill">inactive</span><button class="btn activate" data-activate="${esc(p.id)}">Activate</button>`
                 return (
                   `<div class="card${isActive ? ' active-plan' : ''}">` +
                   `<div class="card-top"><span class="plan-name">${esc(p.name)}</span>` +
-                  `<span class="pill${isActive ? ' active' : ''}">${isActive ? 'active' : 'inactive'}</span></div>` +
+                  `<span class="card-actions">${right}</span></div>` +
                   `<div class="meta">base price</div><div class="base-price">${fmtUsd(p.basePrice)} <span class="thr" style="color:var(--secondary)">(${p.basePrice} base units)</span></div>` +
                   `<div class="meta">tier ladder</div>` +
                   ladderHtml(p) +
@@ -265,7 +270,12 @@
           `<button class="btn primary" id="newplan">New plan</button></div>` +
           cards
         $('#newplan').onclick = openCreate
+        document.querySelectorAll('[data-activate]').forEach((b) => { b.onclick = () => activatePlan(b.dataset.activate) })
         applyFlash()
+      }
+
+      async function activatePlan(id) {
+        try { await fetch(`/api/plans/${id}/activate`, { method: 'POST' }); await refresh() } catch (e) { /* poll will recover */ }
       }
 
       // Flash the active plan's tier matching the newest settlement, when it changes.
