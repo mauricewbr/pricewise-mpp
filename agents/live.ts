@@ -19,7 +19,6 @@ import { MODERATO_CHAIN_ID } from '../src/chain'
 
 const MODEL = 'claude-opus-4-8'
 const TURN_CAP = 8 // a confused agent can't loop forever
-const BASE_PRICE = 0.1 // advertised base price, for the summary line
 
 const args = process.argv.slice(2)
 const accIdx = args.indexOf('--account')
@@ -83,6 +82,16 @@ async function settledAmountFor(addr: string): Promise<number | undefined> {
     return events.find((e) => e.source === addr.toLowerCase())?.amount
   } catch {
     return undefined
+  }
+}
+
+// The advertised base price, read from the live active plan (falls back to $0.10).
+async function activeBaseDollars(): Promise<number> {
+  try {
+    const plan = (await fetch(`${baseUrl}/api/plan`).then((r) => r.json())) as { basePrice?: number }
+    return typeof plan.basePrice === 'number' ? plan.basePrice / 1e6 : 0.1
+  } catch {
+    return 0.1
   }
 }
 
@@ -268,9 +277,10 @@ for (let turn = 1; turn <= turnCap; turn++) {
   process.exit(1)
 }
 
+const baseDollars = await activeBaseDollars()
 console.log(
   `\n[live-agent] discovered facet=${discoveredFacet ? 'yes' : 'no'} · asserted identity=` +
-    `${assertedIdentity ? 'yes' : 'no'} · base ${usd(BASE_PRICE)} → paid ` +
+    `${assertedIdentity ? 'yes' : 'no'} · base ${usd(baseDollars)} → paid ` +
     `${paidAmount != null ? usd(paidAmount) : 'n/a'} · tx ${txRef ?? 'n/a'}`,
 )
 if (repeat > 1 && paidSeq.length) {
