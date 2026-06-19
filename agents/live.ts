@@ -95,6 +95,51 @@ async function activeBaseDollars(): Promise<number> {
   }
 }
 
+// --- presentation only (no effect on the agent or its prompts) ---
+// Keeps the agent's prose visually distinct from the mechanical tool/result logs so
+// it reads well on a projector. ANSI only on a TTY; plain text when piped to a file.
+const TTY = process.stdout.isTTY
+const ansi = (code: string, s: string) => (TTY ? `\x1b[${code}m${s}\x1b[0m` : s)
+const dim = (s: string) => ansi('2', s)
+const bold = (s: string) => ansi('1', s)
+const cyan = (s: string) => ansi('36', s)
+const WIDTH = 84
+
+function wrapLines(text: string, width = WIDTH): string[] {
+  const out: string[] = []
+  for (const para of text.split('\n')) {
+    const words = para.trim().split(/\s+/).filter(Boolean)
+    if (!words.length) { out.push(''); continue }
+    let line = ''
+    for (const w of words) {
+      if ((line + ' ' + w).trim().length > width) { out.push(line.trim()); line = w }
+      else line += ' ' + w
+    }
+    if (line.trim()) out.push(line.trim())
+  }
+  return out
+}
+
+// The agent's reasoning, as a delimited quote block — the thing the audience reads.
+function printAgent(text: string) {
+  const lines = wrapLines(text)
+  console.log('')
+  console.log(cyan('  ╭─ agent ' + '─'.repeat(WIDTH - 7)))
+  for (const l of lines) console.log(cyan('  │ ') + l)
+  console.log(cyan('  ╰' + '─'.repeat(WIDTH + 1)))
+  console.log('')
+}
+// Mechanical logs — dimmed and compact so they recede behind the agent's prose.
+function printTool(name: string, input: unknown) {
+  let arg = JSON.stringify(input)
+  if (arg.length > WIDTH) arg = arg.slice(0, WIDTH) + '…'
+  console.log(dim('  → ') + dim(name + ' ') + dim(arg))
+}
+function printResult(out: string) {
+  const one = out.replace(/\s+/g, ' ')
+  console.log(dim('  ← ' + (one.length > WIDTH + 20 ? one.slice(0, WIDTH + 20) + '…' : one)))
+}
+
 // --- Tools: capability only. They do NOT encode the pricing mechanism. ---
 const tools: Anthropic.Tool[] = [
   {
@@ -217,7 +262,7 @@ console.log(
 )
 console.log(`[live] wallet  = ${account.address}`)
 console.log(`[live] endpoint = ${dataUrl}`)
-console.log(`[live] goal     = "${task}"\n`)
+console.log(dim(`[live] goal     = "${task}"`))
 
 const messages: Anthropic.MessageParam[] = [{ role: 'user', content: task }]
 
@@ -238,7 +283,7 @@ for (let turn = 1; turn <= turnCap; turn++) {
   })
 
   for (const block of res.content) {
-    if (block.type === 'text' && block.text.trim()) console.log(`[claude] ${block.text.trim()}`)
+    if (block.type === 'text' && block.text.trim()) printAgent(block.text.trim())
   }
 
   if (res.stop_reason !== 'tool_use') {
@@ -250,7 +295,7 @@ for (let turn = 1; turn <= turnCap; turn++) {
   const toolResults: Anthropic.ToolResultBlockParam[] = []
   for (const block of res.content) {
     if (block.type !== 'tool_use') continue
-    console.log(`[tool] ${block.name}(${JSON.stringify(block.input)})`)
+    printTool(block.name, block.input)
     const input = block.input as { url: string; headers?: Record<string, string> }
     const out =
       block.name === 'fetch_url'
@@ -258,7 +303,7 @@ for (let turn = 1; turn <= turnCap; turn++) {
         : block.name === 'pay_and_fetch'
           ? await payAndFetch(input)
           : JSON.stringify({ error: `unknown tool ${block.name}` })
-    console.log(`[result] ${out.length > 400 ? out.slice(0, 400) + '…' : out}`)
+    printResult(out)
     toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: out })
   }
   messages.push({ role: 'user', content: toolResults })
@@ -278,10 +323,13 @@ for (let turn = 1; turn <= turnCap; turn++) {
 }
 
 const baseDollars = await activeBaseDollars()
+console.log('')
 console.log(
-  `\n[live-agent] discovered facet=${discoveredFacet ? 'yes' : 'no'} · asserted identity=` +
-    `${assertedIdentity ? 'yes' : 'no'} · base ${usd(baseDollars)} → paid ` +
-    `${paidAmount != null ? usd(paidAmount) : 'n/a'} · tx ${txRef ?? 'n/a'}`,
+  bold(
+    `[live-agent] discovered facet=${discoveredFacet ? 'yes' : 'no'} · asserted identity=` +
+      `${assertedIdentity ? 'yes' : 'no'} · base ${usd(baseDollars)} → paid ` +
+      `${paidAmount != null ? usd(paidAmount) : 'n/a'} · tx ${txRef ?? 'n/a'}`,
+  ),
 )
 if (repeat > 1 && paidSeq.length) {
   console.log(`[live-agent] price per call: ${paidSeq.map(usd).join(' → ')} (${paidSeq.length}/${repeat} settled)`)
